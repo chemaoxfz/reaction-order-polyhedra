@@ -167,9 +167,30 @@ class rop_dom_regime:
     The dictionaory for ld_regime neighbors of this ld_regime that are feasible
       under constraints applied to each dom_regime.
     Same keys as neighbors_dict.
-  c_mat_add_tk
-  c_mat_add_x
-  c_mat_add_
+  
+  c_mat_add_x : numpy array
+    Additional inequalities specifying the condition to reach this 
+      dom_regime on top of the inequalities from its vertex.
+    To be concatenated vertically with vertex.c_mat_x.
+    This is in chart 'x'.
+  c_mat_add_xak : numpy array
+    Additional inequalities specifying the condition to reach this 
+      dom_regime on top of the inequalities from its vertex.
+    To be concatenated vertically with vertex.c_mat_xak.
+    This is in chart 'xak'.
+  c0_vec_add : numpy array
+    Additional intercept vector entries for the inequalities specifying
+      the condition to reach this dom_regime on top of the inequalities
+      from its vertex.
+    To be concatenated vertically with vertex.c0_vec when used to
+      specify inequalities.
+    Same vector for both chart 'x' and 'xak'.
+  c_mat_add_tk : numpy array
+    Additional inequalities specifying this dom_regime on top of the 
+      inequalities from its vertex.
+    To be concatenated vertically with vertex.c_mat_tk.
+    This is in chart 'tk'.
+    Is only meaningful if its vertex is non-singular.
   """
   def __init__(self,row_idx,b_vec,vertex_perm,bn):
     """Initiates a ROP vertex.
@@ -775,9 +796,20 @@ class rop_vertex:
     self.c0_vec_tk=c0_vec_tk
 
   def vertex_print_validity_condition(self,is_asymptotic=False):
-    # print the expression for t=x, x(t,k) and inequalities for the
-    # region of validity given a regime,
-    # using the labels of x,t,k
+    """
+    print the expression for t=x, x(t,k) and inequalities for the
+    region of validity given a regime, using the labels of x,t,k.
+
+    Parameters
+    ----------
+    is_asymptotic : boolean, optional
+      If False, the inequalities are shown with intercept.
+      If True, the inequalities are shown without intercept.
+
+    Returns
+    -------
+    None, but print a lot of text.
+    """
     try:
       c_mat=self.c_mat_tk
       c0_vec=self.c0_vec_tk
@@ -854,19 +886,69 @@ class binding_network:
     Is the binding network atomic or not.
   l_mat : numpy array
     The conservation law matrix defining the conserved total quantities.
-    The default will be calculated if the network is atomic.
+    If the network is atomic, it can be directly computed from n_mat.
+  l_mat_sym
+
   dim_n : 'int'
     The number of chemical species, same as number of columns of n_mat and l_mat.
-  dim_r :
+  dim_r : 'int'
     The number of (linearly independent) binding reactions, same as number of rows of n_mat.
-  dim_d :
+  dim_d : 'int'
     The number of conserved quantities or totals, same as the number of rows of l_mat.
-  x_sym :
-    The list of symbols for the chemical species.
-  t_sym :
-    The list of symbols for the totals.
-  k_sym :
-    The list of symbols for the binding constants.
+  x_sym : list of symbols
+    An ordered list of symbols for the chemical species, denoting columns of the n_mat and l_mat.
+  t_sym : list of symbols
+    An ordered list of symbols for the total or conserved quantities, denoting rows of the l_mat.
+  k_sym : list of symbols
+    An ordered list of symbols for the binding constants in the dissociation direction, denoting rows of the n_mat.
+  tk_sym : list of symbols
+    An ordered list of symbols concatenating (t_sym, k_sym).
+    Just for convenience when (t_sym, k_sym) needs to be called together.
+  opt_var : list of cvxpy variables of length dim_n
+    The cvxpy variables to be used for testing for feasibility etc in 
+      optimization problems.
+  m_mat : numpy array, n-by-n
+    Concatenation of l_mat and n_mat vertically.
+  orientation : 'int'
+    Take value from {-1,0,+1}.
+    This is the sign of m_mat's determinant.
+  activity_regime_dict : dictionary
+    Dictionary of dom_regimes for various activities on top of the 
+      binding network.
+    Keys are b_vec, the vectors defining different catalytic activities
+      on top of the binding network.
+    The value are dictionaries of dom_regimes, with keys 'finite', 
+      'infinite', and 'all', and values are {(perm,row_idx):dom_regime}
+      pairs.
+    For example, activity_regime_dict[b_vec]['all'][(perm,row_idx)]
+      yields a dom_regime object.
+    Initializes as an empty dictionary.
+    Computed by calling self.activity_regime_construct(b_vec).
+  activity_ld_regime_dict : dictionary
+    Dictionary of ld_regimes for various activities on top of the
+      binding network.
+    Keys are b_vec, the vectors defining different catalytic activities
+      on top of the binding network.
+    The value are dictionaries of dom_regimes, with keys 'finite', 
+      'infinite', and 'all', and values are {ld:ld_regime} pairs.
+    For example, activity_ld_regime_dict[b_vec]['all'][(perm,row_idx)]
+      yields a dom_regime object.
+    Initializes as an empty dictionary.
+    Computed by calling self.activity_regime_construct(b_vec).
+  activity_regime_constrained_dict : dictionary
+    Dictionary of dom_regimes feasible under given constraints for 
+      various activities.
+    Same format as activity_regime_dict.
+    Initializes as an empty dictionary.
+    Computed by calling self.activity_regime_construct(b_vec,opt_constraints).
+    Once a new opt_constraints is used, this dict is overwritten.
+  activity_ld_regime_constrained_dict
+    Dictionary of ld_regimes feasible under given constraints for 
+      various activities.
+    Same format as activity_regime_dict.
+    Initializes as an empty dictionary.
+    Computed by calling self.activity_regime_construct(b_vec,opt_constraints).
+    Once a new opt_constraints is used, this dict is overwritten.
   """
 
   def __init__(self,
@@ -886,7 +968,8 @@ class binding_network:
         Is the binding network atomic or not.
     l_mat : numpy array, optional
         The conservation law matrix defining the conserved total quantities.
-        The default will be calculated if the network is atomic.
+        If not given, and is_atomic is True, then it will be computed 
+          from n_mat.
     x_sym : list of symbols, optional
         An ordered list of symbols for the chemical species, denoting columns of the n_mat and l_mat.
     t_sym : list of symbols, optional
@@ -1088,7 +1171,8 @@ class binding_network:
     return xak2x_map.dot(np.concatenate((logxa,logk))) #because the chart is in log
 
   def calc_xak2x_map(self):
-    # the matrix (linear map) that takes log(xa,k) to log(x)
+    # Defines the matrix (linear map) that takes log(xa,k) to log(x)
+    # and stores it in self.xak2x_map
     d=self.dim_d
     r=self.dim_r
     l2_mat=self.l_mat[:,d:]
@@ -1146,6 +1230,22 @@ class binding_network:
 # BELOW ARE VERTEX RELATED METHODS
 
   def vertex_construct(self):
+    """
+    Construct the rop_vertex objects that this binding network can have,
+      compute their orientation and feasibility (without additional 
+      constraints), and store them in self.vertex_dict.
+    Then the vertices' neighbors, log derivative, and c_mat_xak
+      are computed and stored in these objects.
+
+    Parameters
+    ----------
+    None.
+
+    Returns
+    -------
+    None. The vertices are recorded in self.vertex_dict and by updating
+      the vertex objects.
+    """
     # Construct a dictionary of reachable vertices.
     # because l_mat tends to be sparse, we iterate through its rows to get nonzero indices,
     # then each vertex's dominance condition a_mat is choosen from the nonezro indices.
@@ -1199,6 +1299,30 @@ class binding_network:
     print('Done.')
 
   def vertex_constrained_construct(self,opt_constraints,chart='xak'):
+    """
+    Assuming self.vertex_dict is already computed, for given 
+      opt_constraints, this function computes whether the vertices
+      are feasible under these constraints, update 
+      rop_vertex.is_feasible for each vertex, and update each
+      vertex's feasible neighbors (stored in 
+      vertex.neighbors_constrined_dict) and return
+      is_feasible_dict, a dictionary of {perm:is_feasible} pairs.
+    This function calls vertex_list_feasibility_test.
+
+    Parameters
+    ----------
+    opt_constraints : list of cvxpy inequalities
+      List of constraints under which vertices are tested for feasibility.
+    chart : str, optional
+      A string with value from {'x','xak','tk'} that specifies the 
+        chart that the opt_constraints are described in.
+
+    Returns
+    -------
+    is_feasible_dict : dictionary
+      A dictinoary of {perm:is_feasible} pairs for whether a vertex
+        is feasible.
+    """
     # for the given opt_constraints, test for each vertex whether it is feasible
     # under opt_constraints, and create a vertex dictionary for feasible vertices
     # under opt_constraints, stored in self.vertex_constrained_dict.
@@ -1225,6 +1349,27 @@ class binding_network:
     print('Done.')
 
   def vertex_list_feasibility_test(self,opt_constraints,chart='xak'):
+    """
+    Given opt_constraints, test all the vertices for their feasibility
+      and return is_feasible_dict.
+    This function is called by vertex_constrained_construct.
+    It can also be directly called to test for feasibility without
+      storing or finding feasible neighbors.
+
+    Parameters
+    ----------
+    opt_constraints : list of cvxpy inequalities
+      List of constraints under which vertices are tested for feasibility.
+    chart : str, optional
+      A string with value from {'x','xak','tk'} that specifies the 
+        chart that the opt_constraints are described in.
+
+    Returns
+    -------
+    is_feasible_dict : dictionary
+      A dictinoary of {perm:is_feasible} pairs for whether a vertex
+        is feasible.
+    """
     # for the given opt_constraints, test each of the vertex whether it is feasible
     is_feasible_fin={}
     is_feasible_inf={}
