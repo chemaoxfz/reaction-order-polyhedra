@@ -165,7 +165,8 @@ class rop_dom_regime:
     If a new set of constraints is given and tested, then this is overwritten.
   neighbors_constrained_dict : dictionary
     The dictionaory for ld_regime neighbors of this ld_regime that are feasible
-    under constraints applied to each dom_regime.
+      under constraints applied to each dom_regime.
+    Same keys as neighbors_dict.
   c_mat_add_tk
   c_mat_add_x
   c_mat_add_
@@ -435,21 +436,39 @@ class rop_vertex:
   ----------
   perm : an integer tuple
     an integer tuple of length dim_d, indicating for each conserved quantity, which species is dominant.
-  p_mat : numpy array
+  bn : a binding_network object
+    The binding network that this vertex belongs to.
+    Has l_mat (conservation law matrix) and n_mat (stoichiometry matrix).
+  p_mat : numpy array, d-by-n
     d x n matrix with exactly one nonzero entry in each row, of value 1. One-hot representation of perm.
+  p0_vec : numpy array, d-by-1
+    Vector used in (logt, logk) = [p_mat n_mat]' logx + [p0_vec 0]'. 
+    Intercept relating log x  to (logt, logk).
+    n_mat is that of the binding network.
+    p0_vec is all zeros if all entries of bn's l_mat are 0 and 1's.
+  m_mat : numpy array, n-by-n
+    Matrix formed by p_mat and n_mat stacked vertically. 
+    In other words, m_mat = [p_mat n_mat]'.
+    n_mat is that of the binding network.
+  m0_vec : numpy array, n-by-1.
+    Vector used in (logt, logk) = m_mat logx + m0_vec.
+    m0_vec is the same as [p0_vec 0]', i.e. p0_vec vertically 
+      extended with r more zeros.
   orientation : an integer
     take value in +1,0,-1. Sign of determinant of [A' N'] matrix.
-  neighbors : list of perm
-    a list of perm that correspond to vertices neighboring this vertex,
-    i.e. they can be reached by changing one dominance condition in this binding network
-  bn : a binding network object
-    The binding network that this vertex belongs to.
-  h_mat : numpy array
-    n x n matrix corresponding to the log derivative of this vertex
-    if finite, then this is the log derivative
-    if infinite, then this is the direction that log derivative goes into.
-  m_mat : numpy array
-    n x n matrix, concatenation of p_mat with stoichiometry matrix of the binding network.
+  h_mat : numpy array, n-by-n
+    n x n matrix corresponding to the log derivative of this vertex.
+    If finite (non-singular), then this is the log derivative
+    If infinite (singular), then this is the direction that log derivative goes into.
+    At this vertex, we have relation logx = h_mat (logt, logk) + h0_vec.
+    Not always defined, computed and stored once log derivative is 
+      computed by calling self.vertex_ld_calc().
+  h0_vec : numpy array, n-by-1
+    The intercept vector used in the following relation at this vertex:
+      logx = h_mat (logt, logk) + h0_vec.
+    Only defined for finite (non-singular) vertices.
+    Not always defined, computed and stored once log derivative is 
+      computed by calling self.vertex_ld_calc().
   c_mat_x : numpy array
     Matrix encoding feasibility condition of this vertex in 'x' chart, c_mat_x * logx + c0_vec > 0.
     If the feasibility condition is considered "asymptotic", i.e. in positive
@@ -471,11 +490,28 @@ class rop_vertex:
     If the feasibility condition is considered "asymptotic", i.e. in positive
       projective measure rather than Lebesgue measure (so a ray is an infinitesimal
       of volume, not a point), then c0_vec_tk is dropped.
+    Only defined for finite (non-singular) vertices.
     Not always defined, computed and stored when used in feasibility tests.
   c0_vec_tk : numpy vector
     Numpy vector encoding a part of the feasibility condition of this vertex in the
       'tk' chart.
+    Only defined for finite (non-singular) vertices.
     Not always defined, computed and stored when used in feasibility tests.
+  neighbors_dict : dictionary
+    The dictionary for dom_regime neighbors of this dom_regime.
+    Has four keys, three of them are "finite", "infinite", and "all",
+      for finite, infinite (ray) dom_regime neighbors, and all of dom_regime
+      neighbors, respectively.
+    For each of these keys, we get a dictionary as well, with a (perm,row_idx)
+      tuple as key and the dom_regime object as value.
+    The last key is "zero", which maps to neighbors connected via dom_regimes
+      that are zero rays in reaction orders (or log derivative).
+      The value is itself a dictionary with "finite", "infinite",
+      and "all" mapping to dictionaries with (ld:ld_regime) entries.
+  neighbors_constrained_dict : dictionary
+    The dictionaory for ld_regime neighbors of this ld_regime that are feasible
+      under constraints applied to each dom_regime. 
+    Same keys as neighbors_dict.
   """
   def __init__(self,perm,bn):
     """Initiates a ROP vertex
@@ -502,6 +538,38 @@ class rop_vertex:
     self.m0_vec=np.concatenate((self.p0_vec,np.zeros(self.bn.dim_r)),axis=0)
     self.orientation=np.sign(np.linalg.det(self.m_mat))
     self.is_feasible=True
+
+  def vertex_ld_calc(self):
+    # calculate log derivative matrix,
+    # gives ray direction matrix if infinite vertex
+    dim_n = self.bn.dim_n
+    m_mat = self.m_mat
+    if self.orientation==0: # if singular, get the ray direction
+      m_mult_left=np.kron(np.eye(dim_n),m_mat)
+      m_mult_right=np.kron(m_mat.T,np.eye(dim_n))
+      temp=np.concatenate( (m_mult_left,m_mult_right),axis=0)
+      # the following assertion test is not necessary if guaranteed to be rank 1 singularity.
+      # assert temp.shape[1]-np.linalg.matrix_rank(temp)==1, "the vertex is singular in more than one direction."
+      # we assert that an infinite vertex cannot be singular in more than one direction
+      # so the ray is always rank 1. We assume higher order rays are convex combinations of first order rays.
+      rslt=null_space(temp)
+      # the following normalizes the entries to largest entry = 1.
+      h_mat_coarse=np.reshape(rslt,(dim_n,dim_n),order='F') #order='F' is earlier index changes first. here fortran
+      temp=np.abs(h_mat_coarse)
+      minfactor=np.min(temp[temp>1e-7])
+      h_mat_coarse_int=h_mat_coarse/minfactor #all non-zero entries are now integers
+      h_mat_int=np.rint(h_mat_coarse_int)
+      assert np.max(np.abs(h_mat_int-h_mat_coarse_int)) <1e-3, 'rounding of h_mat for vertices caused large error.'
+      h_mat=h_mat_int/np.max(h_mat_int) # normalize largest entry to 1.
+
+      # now we need to check the directionality. This utilizes neighbors
+      vv_nb=list(self.neighbors_dict['finite'].values())[0]
+      if np.sign(np.linalg.det(vv_nb.h_mat+1e5*h_mat))!=self.bn.orientation:
+        h_mat=-1*h_mat
+    else: # if not singular, just invert the matrix.
+      h_mat = np.linalg.inv(m_mat)
+      self.h0_vec = -h_mat.dot(self.m0_vec) # only non-singular vertices have h0_vec.
+    self.h_mat=h_mat
 
   def vertex_c_mat_x_calc(self):
     # Get feasibility condition for this vertex expressed in (x) chart.
@@ -677,39 +745,6 @@ class rop_vertex:
     self.neighbors_constrained_dict={'finite':neighbors_feasible_fin,
                                   'infinite':neighbors_feasible_inf,
                                   'all':neighbors_feasible_all}
-
-
-  def vertex_ld_calc(self):
-    # calculate log derivative matrix,
-    # gives ray direction matrix if infinite vertex
-    dim_n = self.bn.dim_n
-    m_mat = self.m_mat
-    if self.orientation==0: # if singular, get the ray direction
-      m_mult_left=np.kron(np.eye(dim_n),m_mat)
-      m_mult_right=np.kron(m_mat.T,np.eye(dim_n))
-      temp=np.concatenate( (m_mult_left,m_mult_right),axis=0)
-      # the following assertion test is not necessary if guaranteed to be rank 1 singularity.
-      # assert temp.shape[1]-np.linalg.matrix_rank(temp)==1, "the vertex is singular in more than one direction."
-      # we assert that an infinite vertex cannot be singular in more than one direction
-      # so the ray is always rank 1. We assume higher order rays are convex combinations of first order rays.
-      rslt=null_space(temp)
-      # the following normalizes the entries to largest entry = 1.
-      h_mat_coarse=np.reshape(rslt,(dim_n,dim_n),order='F') #order='F' is earlier index changes first. here fortran
-      temp=np.abs(h_mat_coarse)
-      minfactor=np.min(temp[temp>1e-7])
-      h_mat_coarse_int=h_mat_coarse/minfactor #all non-zero entries are now integers
-      h_mat_int=np.rint(h_mat_coarse_int)
-      assert np.max(np.abs(h_mat_int-h_mat_coarse_int)) <1e-3, 'rounding of h_mat for vertices caused large error.'
-      h_mat=h_mat_int/np.max(h_mat_int) # normalize largest entry to 1.
-
-      # now we need to check the directionality. This utilizes neighbors
-      vv_nb=list(self.neighbors_dict['finite'].values())[0]
-      if np.sign(np.linalg.det(vv_nb.h_mat+1e5*h_mat))!=self.bn.orientation:
-        h_mat=-1*h_mat
-    else: # if not singular, just invert the matrix.
-      h_mat = np.linalg.inv(m_mat)
-      self.h0_vec = -h_mat.dot(self.m0_vec) # only non-singular vertices have h0_vec.
-    self.h_mat=h_mat
 
   def vertex_c_mat_xak_calc(self):
     # get the C matrix but for log(xa,k) coordinate
