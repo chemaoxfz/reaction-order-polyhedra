@@ -1,3 +1,14 @@
+# Author: Fangzhou Xiao, 20230720
+
+import numpy as np
+import pandas as pd
+import time
+import sympy as sp
+from scipy.integrate import solve_ivp
+from scipy.linalg import null_space
+import itertools
+import cvxpy as cp
+
 class rop_ld_regime:
   """
   The ld_regime object, for a given ld (log derivative or reaction order),
