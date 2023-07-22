@@ -215,7 +215,7 @@ class rop_dom_regime:
     self.ld=tuple(self.vertex.h_mat[row_idx,:])
     self.is_feasible=True
 
-  def feasibility_test(self,chart='x',opt_constraints=[],positive_threshold=1e-5,is_asymptotic=True):
+  def chart_check_add(self,chart):
     if chart=='x':
       try: c_mat_add=self.c_mat_add_x
       except AttributeError: # c_mat_add is not yet calculated
@@ -234,6 +234,8 @@ class rop_dom_regime:
     else:
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
 
+  def feasibility_test(self,chart='x',opt_constraints=[],positive_threshold=1e-5,is_asymptotic=True):
+    c_mat_add = self.chart_check_add(chart)
     vv=self.vertex
     opt_var=self.bn.opt_var
     opt_constraints_test=[]
@@ -248,7 +250,7 @@ class rop_dom_regime:
 
   def calc_c_mat_add_x(self):
     # compute feasibility conditions of this dominance regime in addition to vertex feasibility conditions
-    # in the form of c_mat_add_x * x > 0, i.e. in chart x.
+    # in the form of c_mat_add_x * x + c0_vec_add > 0, i.e. in chart x.
     j=self.row_idx
     b_vec=np.array(self.b_vec)
     nnz_b=np.where(b_vec > 0)[0]
@@ -292,6 +294,9 @@ class rop_dom_regime:
       tk2x_map=self.vertex.xak2x_map
     c_mat_add_tk=c_mat_add_x.dot(tk2x_map)
     self.c_mat_add_tk=c_mat_add_tk
+    ###############XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    #######XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    ##### THIS SHOULD HAVE c0_vec_add_tk??????
 
   def find_neighbors(self):
     vv=self.vertex
@@ -663,32 +668,7 @@ class rop_vertex:
        whether this vertex is feasible under the constraints.
     """
     # first prepare the c_mat and c0_vec for the desired chart.
-    if chart=='x':
-      try:
-        c_mat=self.c_mat_x
-        c0_vec=self.c0_vec
-      except AttributeError: # if c_mat_x is not yet calculated
-        self.vertex_c_mat_x_calc()
-        c_mat=self.c_mat_x
-        c0_vec=self.c0_vec
-    elif chart=='xak':
-      try:
-        c_mat=self.c_mat_xak
-        c0_vec=self.c0_vec #c0_vec is the same for chart x and xak.
-      except AttributeError: # if c_mat_xak is not yet calculated
-        self.vertex_c_mat_xak_calc()
-        c_mat=self.c_mat_xak
-        c0_vec=self.c0_vec
-    elif chart=='tk':
-      try:
-        c_mat=self.c_mat_tk
-        c0_vec=self.c0_vec_tk
-      except AttributeError: # if c_mat_xak is not yet calculated
-        self.vertex_c_mat_tk_calc()
-        c_mat=self.c_mat_tk
-        c0_vec=self.c0_vec_tk
-    else:
-      raise Exception('chart that is not one of x,xak or tk is not implemented yet')
+    c_mat,c0_vec=self.chart_check(chart)
     is_feasible=True
     opt_var=self.bn.opt_var #opt_var came from the binding network.
     if is_asymptotic: #if asymptotic, c0_vec is zero.
@@ -794,6 +774,153 @@ class rop_vertex:
     c0_vec_tk=self.c0_vec - c_mat_x.dot(self.h_mat.dot(self.m0_vec))
     self.c_mat_tk=c_mat_tk
     self.c0_vec_tk=c0_vec_tk
+
+  def chart_check(self,chart):
+    """
+    Prepare the c_mat and c0_vec for the desired chart.
+
+    Parameters
+    ----------
+    chart : str, optional
+      A string indicating the chart that the opt_constraints are specified in.
+      Choices are 'x','xak', and 'tk'.
+    
+    Returns
+    ---------
+    c_mat : ndarray
+      matrix used in this vertex's feasibility condition in the 
+        desired chart, e.g. it is c_mat * x + c0_vec > 0 in chart 'x'.
+    c0_vec : ndarray vector
+      The vector used in this vertex's feasibility condition in the
+        desired chart, e.g. it is c_mat * x + c0_vec > 0 in chart 'x'.
+    """
+    if chart=='x':
+      try:
+        c_mat=self.c_mat_x
+        c0_vec=self.c0_vec
+      except AttributeError: # if c_mat_x is not yet calculated
+        self.vertex_c_mat_x_calc()
+        c_mat=self.c_mat_x
+        c0_vec=self.c0_vec
+    elif chart=='xak':
+      try:
+        c_mat=self.c_mat_xak
+        c0_vec=self.c0_vec #c0_vec is the same for chart x and xak.
+      except AttributeError: # if c_mat_xak is not yet calculated
+        self.vertex_c_mat_xak_calc()
+        c_mat=self.c_mat_xak
+        c0_vec=self.c0_vec
+    elif chart=='tk':
+      try:
+        c_mat=self.c_mat_tk
+        c0_vec=self.c0_vec_tk
+      except AttributeError: # if c_mat_xak is not yet calculated
+        self.vertex_c_mat_tk_calc()
+        c_mat=self.c_mat_tk
+        c0_vec=self.c0_vec_tk
+    else:
+      raise Exception('chart that is not one of x,xak or tk is not implemented yet')
+    return c_mat,c0_vec
+
+  def vertex_hull_of_validity(self,chart='x',positive_threshold=0,logxmin=-10,logxmax=10):
+    """
+    Compute the vertices of the validity region as a bounded convex hull.
+
+    Parameters
+    ----------
+    chart : str, optional
+      A string indicating the chart that the opt_constraints are specified in.
+      Choices are 'x','xak', and 'tk'.
+    positive_threshold : float, optional
+      The vertex's feasibility conditions are inequalities, 
+        of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
+        where th is the positive threshold used here. Default to 1 (10-fold).
+      This can be adjusted to be stronger/weaker requirements on dominance.
+    logxmin : float or ndarray vector
+      logxmin, logxmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+    logxmax : float or ndarray vector
+      logxmin, logxmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+
+    Returns
+    -------
+    points : ndarray
+      The points corresponding to vertices of the convex hull that is the 
+        region of validity.
+    feasible_point: ndarray vector
+      The point that is feasible in the interior of the convex hull.
+    hs : scipy.spatial.HalfspaceIntersection object
+      The half space intersection built from the feasibility inequalities.
+    """
+    # first check whether logxmin and logxmax are scalars or vectors.
+    try float(logxmin): # if logxmin and logxmax are scalars
+      bbox = np.repeat(np.array([[logxmin,logxmax]]),self.bn.dim_n,axis=0) #bounding box to make polyhedra bounded
+    except TypeError: # if logxmin and logxmax are vectors
+      # stack them horizontally as column vectors
+      bbox = np.hstack((logxmin[:,None],logxmax[:,None]))
+
+    c_mat,c0_vec=self.chart_check(chart)
+
+    A=-self.c_mat_x # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
+    b=-self.c0_vec
+
+    # A_, b_ = add_bbox(A, b, bbox)
+    # interior_point = feasible_point(A_, b_)
+
+    points, interior_point, hs = get_convex_hull(A,b,bbox)
+
+    def get_convex_hull(A, b, bbox):
+      # Given A,b for halfspace intersection A x + b <=0,
+      #   and bounding box bbox,
+      #   get the vertices of the convex hull that formed.
+      A_bounded, b_bounded = add_bbox(A, b, bbox)
+      interior_point = feasible_point_calc(A_bounded, b_bounded)
+      hs = hs_intersection(A_bounded, b_bounded, interior_point)
+      # hs = hs_intersection(A, b, interior_point)
+      points = hs.intersections
+      hull = ConvexHull(points)
+      return points[hull.vertices], interior_point, hs
+    
+    def feasible_point_calc(A, b):
+      # Finds the center of the largest sphere fitting in the convex hull of
+      #   A x + b <= 0.
+      # Use method in description of scipy.spatial.HalfspaceIntersection.
+      # Based on Chebyshev center finding of Boyd's book 4.3.1
+      # Needs to solve max y s.t. A x + y |A_i| + b <= 0. A_i are rows of A,
+      #   so |A_i| is the norm vector of rows of A.
+      # We transform this inequality into min c*x, A_ x <= b_,
+      #   standard form of a linear program,
+      #   where c=(0,...,0,-1) so that c*x = x[-1] = y, and x[:-1] is x above,
+      #   A_ = hstack(A,|A_i|). b_ is the same as -b, but as a column vector.
+      norm_vector = np.linalg.norm(A, axis=1) # Frobenius norm
+      A_ = np.hstack((A, norm_vector[:, None]))
+      b_ = -b[:, None] # this makes b into shape len(b)-by-1.
+      c = np.zeros((A.shape[1] + 1,))
+      c[-1] = -1
+      res = linprog(c, A_ub=A_, b_ub=b_, bounds=(None, None))
+      return res.x[:-1]
+
+    def add_bbox(A, b, bbox):
+      # in case A x + b <= 0 is not bounded, add a bounding box specified by bbox.
+      # bbox is an array, n-by-2, the ith row is (min,max) of x_i.
+      # Transform: bbox[i,0] is min, so x_i >= bbox[i,0] becomes -x_i + bbox[i,0] <=0.
+      #   This is encoded in A's entry is -I, and b's entry is bbox[i,0].
+      #   Similarly for max, A's entry is +I, and b's entry is -bbox[i,1].
+      dim_n=A.shape[1]
+      for i in range(dim_n):
+        A = np.vstack((A,-np.eye(1,dim_n,i),np.eye(1,dim_n,i)))
+        b = np.hstack((b,bbox[i,0],-bbox[i,1]))
+      return A, b   
+    def hs_intersection(A, b, feasible_point):
+      # HalfspaceIntersection take the convention halfspaces=[A;b]
+      #   to indicate A x + b <= 0.
+      halfspaces = np.hstack((A, b[:, None]))
+      hs = HalfspaceIntersection(halfspaces, feasible_point)
+      return hs
+
 
   def vertex_print_validity_condition(self,is_asymptotic=False):
     """
