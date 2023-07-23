@@ -910,12 +910,12 @@ class rop_vertex:
       #   get the vertices of the convex hull that formed.
       # Modified from https://stackoverflow.com/questions/65343771/solve-linear-inequalities
       A_bounded, b_bounded = add_bbox(A, b, bbox)
-      interior_point = feasible_point_calc(A_bounded, b_bounded)
-      hs = hs_intersection(A_bounded, b_bounded, interior_point)
+      feasible_point = feasible_point_calc(A_bounded, b_bounded)
+      hs = hs_intersection(A_bounded, b_bounded, feasible_point)
       # hs = hs_intersection(A, b, interior_point)
       points = hs.intersections
       hull = ConvexHull(points)
-      return points[hull.vertices], interior_point, hs
+      return points[hull.vertices], feasible_point, hs
 
     c_mat,c0_vec=self.chart_check(chart)
 
@@ -925,7 +925,8 @@ class rop_vertex:
     # A_, b_ = add_bbox(A, b, bbox)
     # interior_point = feasible_point(A_, b_)
 
-    points, interior_point, hs = get_convex_hull(A,b,bbox)
+    points, feasible_point, hs = get_convex_hull(A,b,bbox)
+    return points,feasible_point,hs
 
 
   def vertex_print_validity_condition(self,is_asymptotic=False):
