@@ -6,6 +6,8 @@ import time
 import sympy as sp
 from scipy.integrate import solve_ivp
 from scipy.linalg import null_space
+from scipy.spatial import HalfspaceIntersection, ConvexHull
+from scipy.optimize import linprog
 import itertools
 import cvxpy as cp
 
@@ -877,6 +879,7 @@ class rop_vertex:
       # Given A,b for halfspace intersection A x + b <=0,
       #   and bounding box bbox,
       #   get the vertices of the convex hull that formed.
+      # Modified from https://stackoverflow.com/questions/65343771/solve-linear-inequalities
       A_bounded, b_bounded = add_bbox(A, b, bbox)
       interior_point = feasible_point_calc(A_bounded, b_bounded)
       hs = hs_intersection(A_bounded, b_bounded, interior_point)
