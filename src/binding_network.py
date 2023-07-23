@@ -772,6 +772,8 @@ class rop_vertex:
     except AttributeError:
       self.vertex_c_mat_x_calc()
       c_mat_x=self.c_mat_x
+    # The equivalence here is the following:
+    # c_mat_tk @ log(t,k) + c0_vec_tk >=0  <=>  c_mat_x @ logx + c0_vec >=0
     c_mat_tk=c_mat_x.dot(self.h_mat) #because h_mat*log(t,k)=log(x)
     c0_vec_tk=self.c0_vec - c_mat_x.dot(self.h_mat.dot(self.m0_vec))
     self.c_mat_tk=c_mat_tk
@@ -1565,7 +1567,7 @@ class binding_network:
     is_feasible_dict={'all':is_feasible_all,'finite':is_feasible_fin,'infinite':is_feasible_inf}
     return is_feasible_dict
 
-  def sampling_over_vertex_hull(self,nsample,chart='x',logmin=-6,logmax=6,positive_threshold=0):
+  def sampling_over_vertex_hull(self,nsample,is_finite_only=False, chart='x',logmin=-6,logmax=6,positive_threshold=0):
     """
     Randomly sample points in the log space of chart variables,
       but instead of log-uniform, we first assign points to each vertex
@@ -1576,6 +1578,9 @@ class binding_network:
     nsample : int
       The number of points to be sampled in the space of chart variables.
       This is divided evenly to all the vertices of this binding network.
+    is_finite_only : bool
+      If True, only finite vertices are sampled. This also allows chart 'tk' to work.
+      If False, both finite and infinite vertices are sampled.
     chart : str, optional
       A string indicating the chart that the opt_constraints are specified in.
       Choices are 'x','xak', and 'tk'.
@@ -1598,7 +1603,11 @@ class binding_network:
     sample_dict : dictionary of ndarray with shape nsample-by-dim_n
       Key is the perm of each vertex. Value is the sample for that vertex.
     """
-    nvertex=len(self.vertex_dict['all'].keys())
+    if is_finite_only: 
+      finite_key='finite'
+    else: 
+      finite_key='all'
+    nvertex=len(self.vertex_dict[finite_key].keys())
     nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
     sample_dict={}
     for key,vv in self.vertex_dict['all'].items():
