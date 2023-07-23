@@ -1610,7 +1610,7 @@ class binding_network:
     nvertex=len(self.vertex_dict[finite_key].keys())
     nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
     sample_dict={}
-    for key,vv in self.vertex_dict['all'].items():
+    for key,vv in self.vertex_dict[finite_key].items():
       sample_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
     return sample_dict
 
