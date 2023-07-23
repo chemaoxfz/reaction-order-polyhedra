@@ -824,7 +824,7 @@ class rop_vertex:
       raise Exception('chart that is not one of x,xak or tk is not implemented yet')
     return c_mat,c0_vec
 
-  def vertex_hull_of_validity(self,chart='x',positive_threshold=0,logxmin=-10,logxmax=10):
+  def vertex_hull_of_validity(self,chart='x',positive_threshold=0,logmin=-10,logmax=10):
     """
     Compute the vertices of the validity region as a bounded convex hull.
 
@@ -838,12 +838,12 @@ class rop_vertex:
         of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
         where th is the positive threshold used here. Default to 1 (10-fold).
       This can be adjusted to be stronger/weaker requirements on dominance.
-    logxmin : float or ndarray vector
-      logxmin, logxmax could be scalars, then it's the same value applied to 
+    logmin : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
-    logxmax : float or ndarray vector
-      logxmin, logxmax could be scalars, then it's the same value applied to 
+    logmax : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
 
@@ -858,13 +858,13 @@ class rop_vertex:
       The half space intersection built from the feasibility inequalities.
     """
     
-    # first check whether logxmin and logxmax are scalars or vectors.
+    # first check whether logmin and logmax are scalars or vectors.
     try: 
-      float(logxmin) # if logxmin and logxmax are scalars
-      bbox = np.repeat(np.array([[logxmin,logxmax]]),self.bn.dim_n,axis=0) #bounding box to make polyhedra bounded
-    except TypeError: # if logxmin and logxmax are vectors
+      float(logmin) # if logmin and logmax are scalars
+      bbox = np.repeat(np.array([[logmin,logmax]]),self.bn.dim_n,axis=0) #bounding box to make polyhedra bounded
+    except TypeError: # if logmin and logmax are vectors
       # stack them horizontally as column vectors
-      bbox = np.hstack((logxmin[:,None],logxmax[:,None]))
+      bbox = np.hstack((logmin[:,None],logmax[:,None]))
 
     c_mat,c0_vec=self.chart_check(chart)
 
@@ -929,13 +929,13 @@ class rop_vertex:
     return points[hull.vertices], feasible_point, hs
 
 
-  def vertex_hull_sampling(self,nsample,chart='x',positive_threshold=0,logxmin=-10,logxmax=10):
+  def vertex_hull_sampling(self,nsample,chart='x',positive_threshold=0,logmin=-10,logmax=10):
     """
     Sample points in the vertex's region of validity based on its hull of feasible regions.
 
     Parameters
     ----------
-    nsample : int,
+    nsample : int
       Number of points to be sampled.
     chart : str, optional
       A string indicating the chart that the opt_constraints are specified in.
@@ -945,20 +945,24 @@ class rop_vertex:
         of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
         where th is the positive threshold used here. Default to 1 (10-fold).
       This can be adjusted to be stronger/weaker requirements on dominance.
-    logxmin : float or ndarray vector
-      logxmin, logxmax could be scalars, then it's the same value applied to 
+    logmin : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
-    logxmax : float or ndarray vector
-      logxmin, logxmax could be scalars, then it's the same value applied to 
+    logmax : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
 
     Returns
     -------
+    sample : ndarray of shape nsample-by-dim_n
+      dim_n is number of species in the binding network.
+      Sampled points satisfying the feasibility conditions of this vertex.
+      Each row (sample[i,:]) is a sampled point.
     """
     # first compute the convex hull for this vertex's validity and get the vertex points.
-    points,_,_=self.vertex_hull_of_validity(chart=chart,positive_threshold=positive_threshold,logxmin=logxmin,logxmax=logxmax)
+    points,_,_=self.vertex_hull_of_validity(chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
     # To sample a simplex in n-dim uniformly, take n uniform(0,1) random 
     #   variables and take difference after padding 0 at the beginning and
     #   1 at the end. This gives a vector of n-dim in the simplex, with
@@ -1558,6 +1562,46 @@ class binding_network:
     is_feasible_all={**is_feasible_fin,**is_feasible_inf}
     is_feasible_dict={'all':is_feasible_all,'finite':is_feasible_fin,'infinite':is_feasible_inf}
     return is_feasible_dict
+
+  def sampling_over_vertex_hull(self,nsample,chart='x',logmin=-6,logmax=6,positive_threshold=0):
+    """
+    Randomly sample points in the log space of chart variables,
+      but instead of log-uniform, we first assign points to each vertex
+      in an even fashion, then sample uniformly within each vertex.
+
+    Parameters
+    ----------
+    nsample : int
+      The number of points to be sampled in the space of chart variables.
+      This is divided evenly to all the vertices of this binding network.
+    chart : str, optional
+      A string indicating the chart that the opt_constraints are specified in.
+      Choices are 'x','xak', and 'tk'.
+    positive_threshold : float, optional
+      The vertex's feasibility conditions are inequalities, 
+        of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
+        where th is the positive threshold used here. Default to 1 (10-fold).
+      This can be adjusted to be stronger/weaker requirements on dominance.
+    logmin : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+    logmax : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+
+    Returns
+    -------
+    sample_dict : dictionary of ndarray with shape nsample-by-dim_n
+      Key is the perm of each vertex. Value is the sample for that vertex.
+    """
+    nvertex=len(self.vertex_dict['all'].keys())
+    nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
+    sample_dict={}
+    for key,vv in self.vertex_all['all'].items():
+      sample_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
+    return sample_dict
 
   def activity_regime_construct(self,b_vec):
     # given b_vec, go through all vertices and their possible regimes
