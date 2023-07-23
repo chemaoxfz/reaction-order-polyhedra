@@ -865,16 +865,16 @@ class rop_vertex:
       # Based on Chebyshev center finding of Boyd's book 4.3.1
       # Needs to solve max y s.t. A x + y |A_i| + b <= 0. A_i are rows of A,
       #   so |A_i| is the norm vector of rows of A.
-      # We transform this inequality into min c*x, A_ x <= b_,
+      # We transform this inequality into min c*x, A_lp x <= b_lp,
       #   standard form of a linear program,
       #   where c=(0,...,0,-1) so that c*x = x[-1] = y, and x[:-1] is x above,
-      #   A_ = hstack(A,|A_i|). b_ is the same as -b, but as a column vector.
+      #   A_lp = hstack(A,|A_i|). b_lp is the same as -b, but as a column vector.
       norm_vector = np.linalg.norm(A, axis=1) # Frobenius norm
-      A_ = np.hstack((A, norm_vector[:, None]))
-      b_ = -b[:, None] # this makes b into shape len(b)-by-1.
+      A_lp = np.hstack((A, norm_vector[:, None])) 
+      b_lp = -b[:, None] # this makes b into shape len(b)-by-1.
       c = np.zeros((A.shape[1] + 1,))
       c[-1] = -1
-      res = linprog(c, A_ub=A_, b_ub=b_, bounds=(None, None))
+      res = linprog(c, A_ub=A_lp, b_ub=b_lp, bounds=(None, None))
       return res.x[:-1]
 
     def add_bbox(A, b, bbox):
