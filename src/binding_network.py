@@ -858,19 +858,6 @@ class rop_vertex:
       The half space intersection built from the feasibility inequalities.
     """
     
-    def get_convex_hull(A, b, bbox):
-      # Given A,b for halfspace intersection A x + b <=0,
-      #   and bounding box bbox,
-      #   get the vertices of the convex hull that formed.
-      # Modified from https://stackoverflow.com/questions/65343771/solve-linear-inequalities
-      A_bounded, b_bounded = add_bbox(A, b, bbox)
-      interior_point = feasible_point_calc(A_bounded, b_bounded)
-      hs = hs_intersection(A_bounded, b_bounded, interior_point)
-      # hs = hs_intersection(A, b, interior_point)
-      points = hs.intersections
-      hull = ConvexHull(points)
-      return points[hull.vertices], interior_point, hs
-    
     def feasible_point_calc(A, b):
       # Finds the center of the largest sphere fitting in the convex hull of
       #   A x + b <= 0.
@@ -901,6 +888,7 @@ class rop_vertex:
         A = np.vstack((A,-np.eye(1,dim_n,i),np.eye(1,dim_n,i)))
         b = np.hstack((b,bbox[i,0],-bbox[i,1]))
       return A, b   
+    
     def hs_intersection(A, b, feasible_point):
       # HalfspaceIntersection take the convention halfspaces=[A;b]
       #   to indicate A x + b <= 0.
@@ -915,6 +903,19 @@ class rop_vertex:
     except TypeError: # if logxmin and logxmax are vectors
       # stack them horizontally as column vectors
       bbox = np.hstack((logxmin[:,None],logxmax[:,None]))
+
+    def get_convex_hull(A, b, bbox):
+      # Given A,b for halfspace intersection A x + b <=0,
+      #   and bounding box bbox,
+      #   get the vertices of the convex hull that formed.
+      # Modified from https://stackoverflow.com/questions/65343771/solve-linear-inequalities
+      A_bounded, b_bounded = add_bbox(A, b, bbox)
+      interior_point = feasible_point_calc(A_bounded, b_bounded)
+      hs = hs_intersection(A_bounded, b_bounded, interior_point)
+      # hs = hs_intersection(A, b, interior_point)
+      points = hs.intersections
+      hull = ConvexHull(points)
+      return points[hull.vertices], interior_point, hs
 
     c_mat,c0_vec=self.chart_check(chart)
 
