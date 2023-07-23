@@ -858,7 +858,7 @@ class rop_vertex:
       The half space intersection built from the feasibility inequalities.
     """
     
-    def feasible_point_calc(A, b):
+    def feasible_point_calc(A_local, b_local):
       # Finds the center of the largest sphere fitting in the convex hull of
       #   A x + b <= 0.
       # Use method in description of scipy.spatial.HalfspaceIntersection.
@@ -869,30 +869,32 @@ class rop_vertex:
       #   standard form of a linear program,
       #   where c=(0,...,0,-1) so that c*x = x[-1] = y, and x[:-1] is x above,
       #   A_lp = hstack(A,|A_i|). b_lp is the same as -b, but as a column vector.
-      norm_vector = np.linalg.norm(A, axis=1) # Frobenius norm
-      A_lp = np.hstack((A, norm_vector[:, None])) 
-      b_lp = -b[:, None] # this makes b into shape len(b)-by-1.
-      c = np.zeros((A.shape[1] + 1,))
+      norm_vector = np.linalg.norm(A_local, axis=1) # Frobenius norm
+      A_linprog = np.hstack((A_local, norm_vector[:, None])) 
+      b_linprog = -b_local[:, None] # this makes b into shape len(b)-by-1.
+      c = np.zeros((A_local.shape[1] + 1,))
       c[-1] = -1
-      res = linprog(c, A_ub=A_lp, b_ub=b_lp, bounds=(None, None))
+      res = linprog(c, A_ub=A_linprog, b_ub=b_linprog, bounds=(None, None))
       return res.x[:-1]
 
-    def add_bbox(A, b, bbox):
+    def add_bbox(A_local, b_local, bbox):
       # in case A x + b <= 0 is not bounded, add a bounding box specified by bbox.
       # bbox is an array, n-by-2, the ith row is (min,max) of x_i.
       # Transform: bbox[i,0] is min, so x_i >= bbox[i,0] becomes -x_i + bbox[i,0] <=0.
       #   This is encoded in A's entry is -I, and b's entry is bbox[i,0].
       #   Similarly for max, A's entry is +I, and b's entry is -bbox[i,1].
-      dim_n=A.shape[1]
+      dim_n=A_local.shape[1]
+      A_bounded=A_local
+      b_bounded=b_local
       for i in range(dim_n):
-        A = np.vstack((A,-np.eye(1,dim_n,i),np.eye(1,dim_n,i)))
-        b = np.hstack((b,bbox[i,0],-bbox[i,1]))
-      return A, b   
+        A_bounded = np.vstack((A_bounded,-np.eye(1,dim_n,i),np.eye(1,dim_n,i)))
+        b_bounded = np.hstack((b_bounded,bbox[i,0],-bbox[i,1]))
+      return A_bounded, b_bounded   
     
-    def hs_intersection(A, b, feasible_point):
+    def hs_intersection(A_local, b_local, feasible_point):
       # HalfspaceIntersection take the convention halfspaces=[A;b]
       #   to indicate A x + b <= 0.
-      halfspaces = np.hstack((A, b[:, None]))
+      halfspaces = np.hstack((A_local, b_local[:, None]))
       hs = HalfspaceIntersection(halfspaces, feasible_point)
       return hs
 
@@ -904,12 +906,12 @@ class rop_vertex:
       # stack them horizontally as column vectors
       bbox = np.hstack((logxmin[:,None],logxmax[:,None]))
 
-    def get_convex_hull(A, b, bbox):
+    def get_convex_hull(A_local, b_local, bbox):
       # Given A,b for halfspace intersection A x + b <=0,
       #   and bounding box bbox,
       #   get the vertices of the convex hull that formed.
       # Modified from https://stackoverflow.com/questions/65343771/solve-linear-inequalities
-      A_bounded, b_bounded = add_bbox(A, b, bbox)
+      A_bounded, b_bounded = add_bbox(A_local, b_local, bbox)
       feasible_point = feasible_point_calc(A_bounded, b_bounded)
       hs = hs_intersection(A_bounded, b_bounded, feasible_point)
       # hs = hs_intersection(A, b, interior_point)
