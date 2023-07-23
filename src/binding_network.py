@@ -868,8 +868,10 @@ class rop_vertex:
 
     c_mat,c0_vec=self.chart_check(chart)
 
-    A=-self.c_mat_x # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
-    b=-self.c0_vec
+    # c_mat*var + c0_vec >= th, becomes A*var + b <=0
+    # where A = -c_mat, and b = th - c0_vec.
+    A=-c_mat # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
+    b=positive_threshold*np.ones(c0_vec.shape[0])-c0_vec
 
     points, feasible_point, hs = self.__get_convex_hull(A,b,bbox)
     return points,feasible_point,hs
