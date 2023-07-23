@@ -857,24 +857,7 @@ class rop_vertex:
     hs : scipy.spatial.HalfspaceIntersection object
       The half space intersection built from the feasibility inequalities.
     """
-    # first check whether logxmin and logxmax are scalars or vectors.
-    try: 
-      float(logxmin) # if logxmin and logxmax are scalars
-      bbox = np.repeat(np.array([[logxmin,logxmax]]),self.bn.dim_n,axis=0) #bounding box to make polyhedra bounded
-    except TypeError: # if logxmin and logxmax are vectors
-      # stack them horizontally as column vectors
-      bbox = np.hstack((logxmin[:,None],logxmax[:,None]))
-
-    c_mat,c0_vec=self.chart_check(chart)
-
-    A=-self.c_mat_x # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
-    b=-self.c0_vec
-
-    # A_, b_ = add_bbox(A, b, bbox)
-    # interior_point = feasible_point(A_, b_)
-
-    points, interior_point, hs = get_convex_hull(A,b,bbox)
-
+    
     def get_convex_hull(A, b, bbox):
       # Given A,b for halfspace intersection A x + b <=0,
       #   and bounding box bbox,
@@ -924,6 +907,24 @@ class rop_vertex:
       halfspaces = np.hstack((A, b[:, None]))
       hs = HalfspaceIntersection(halfspaces, feasible_point)
       return hs
+
+    # first check whether logxmin and logxmax are scalars or vectors.
+    try: 
+      float(logxmin) # if logxmin and logxmax are scalars
+      bbox = np.repeat(np.array([[logxmin,logxmax]]),self.bn.dim_n,axis=0) #bounding box to make polyhedra bounded
+    except TypeError: # if logxmin and logxmax are vectors
+      # stack them horizontally as column vectors
+      bbox = np.hstack((logxmin[:,None],logxmax[:,None]))
+
+    c_mat,c0_vec=self.chart_check(chart)
+
+    A=-self.c_mat_x # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
+    b=-self.c0_vec
+
+    # A_, b_ = add_bbox(A, b, bbox)
+    # interior_point = feasible_point(A_, b_)
+
+    points, interior_point, hs = get_convex_hull(A,b,bbox)
 
 
   def vertex_print_validity_condition(self,is_asymptotic=False):
