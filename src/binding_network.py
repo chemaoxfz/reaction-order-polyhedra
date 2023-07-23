@@ -929,6 +929,47 @@ class rop_vertex:
     return points[hull.vertices], feasible_point, hs
 
 
+  def vertex_hull_sampling(self,nsample,chart='x',positive_threshold=0,logxmin=-10,logxmax=10):
+    """
+    Sample points in the vertex's region of validity based on its hull of feasible regions.
+
+    Parameters
+    ----------
+    nsample : int,
+      Number of points to be sampled.
+    chart : str, optional
+      A string indicating the chart that the opt_constraints are specified in.
+      Choices are 'x','xak', and 'tk'.
+    positive_threshold : float, optional
+      The vertex's feasibility conditions are inequalities, 
+        of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
+        where th is the positive threshold used here. Default to 1 (10-fold).
+      This can be adjusted to be stronger/weaker requirements on dominance.
+    logxmin : float or ndarray vector
+      logxmin, logxmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+    logxmax : float or ndarray vector
+      logxmin, logxmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+
+    Returns
+    -------
+    """
+    # first compute the convex hull for this vertex's validity and get the vertex points.
+    points,_,_=self.vertex_hull_of_validity(chart=chart,positive_threshold=positive_threshold,logxmin=logxmin,logxmax=logxmax)
+    # To sample a simplex in n-dim uniformly, take n uniform(0,1) random 
+    #   variables and take difference after padding 0 at the beginning and
+    #   1 at the end. This gives a vector of n-dim in the simplex, with
+    #   a probability density that is uniform in the simplex.
+    #   See https://cs.stackexchange.com/questions/3227/uniform-sampling-from-a-simplex
+    ncoeffs=points.shape[0]
+    temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
+    coeffs=np.diff(temp,prepend=0,append=1,axis=1)
+    sample=coeffs@points # this has shape nsample-by-dim_n
+    return sample
+
   def vertex_print_validity_condition(self,is_asymptotic=False):
     """
     print the expression for t=x, x(t,k) and inequalities for the
