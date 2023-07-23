@@ -856,7 +856,8 @@ class rop_vertex:
       The half space intersection built from the feasibility inequalities.
     """
     # first check whether logxmin and logxmax are scalars or vectors.
-    try float(logxmin): # if logxmin and logxmax are scalars
+    try: 
+      float(logxmin) # if logxmin and logxmax are scalars
       bbox = np.repeat(np.array([[logxmin,logxmax]]),self.bn.dim_n,axis=0) #bounding box to make polyhedra bounded
     except TypeError: # if logxmin and logxmax are vectors
       # stack them horizontally as column vectors
