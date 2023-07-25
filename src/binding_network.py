@@ -882,8 +882,8 @@ class rop_vertex:
     # so margin_full = vstack((margin,zeros)) where zeros is of length len(c0_vec_extra)
     if np.any(c_mat_extra): # if there are additional constraints
       c_mat_full=np.vstack((c_mat,c_mat_extra))
-      c0_vec_full=np.vstack((c0_vec,c0_vec_extra))
-      margin_vec_full = np.vstack((margin*np.ones(c0_vec.shape[0]),np.zeros(c0_vec_extra.shape[0])))
+      c0_vec_full=np.concatenate((c0_vec,c0_vec_extra))
+      margin_vec_full = np.concatenate((margin*np.ones(c0_vec.shape[0]),np.zeros(c0_vec_extra.shape[0])))
     else: # there are no additional constraints
       c_mat_full=c_mat 
       c0_vec_full = c0_vec
