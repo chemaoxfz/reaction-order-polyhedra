@@ -880,7 +880,7 @@ class rop_vertex:
     # where A = -c_mat, and b = th - c0_vec.
     # With extra constraints, margin is always 0 for extra constraints,
     # so margin_full = vstack((margin,zeros)) where zeros is of length len(c0_vec_extra)
-    if c_mat_extra: # if there are additional constraints
+    if np.any(c_mat_extra): # if there are additional constraints
       c_mat_full=np.vstack((c_mat,c_mat_extra))
       c0_vec_full=np.vstack((c0_vec,c0_vec_extra))
       margin_vec_full = np.vstack((margin*np.ones(c0_vec.shape[0]),np.zeros(c0_vec_extra.shape[0])))
