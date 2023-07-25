@@ -826,7 +826,7 @@ class rop_vertex:
       raise Exception('chart that is not one of x,xak or tk is not implemented yet')
     return c_mat,c0_vec
 
-  def vertex_hull_of_validity(self,chart='x',positive_threshold=0,logmin=-10,logmax=10):
+  def vertex_hull_of_validity(self,chart='x',margin=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
     """
     Compute the vertices of the validity region as a bounded convex hull.
 
@@ -835,10 +835,10 @@ class rop_vertex:
     chart : str, optional
       A string indicating the chart that the opt_constraints are specified in.
       Choices are 'x','xak', and 'tk'.
-    positive_threshold : float, optional
+    margin : float, optional
       The vertex's feasibility conditions are inequalities, 
-        of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
-        where th is the positive threshold used here. Default to 1 (10-fold).
+        of the form c_mat*x + c0_vec >= margin (e.g. in 'x' chart),
+        Margin defaults to 0, and its values are in log10.
       This can be adjusted to be stronger/weaker requirements on dominance.
     logmin : float or ndarray vector
       logmin, logmax could be scalars, then it's the same value applied to 
@@ -848,7 +848,13 @@ class rop_vertex:
       logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
-
+    c_mat_extra : ndarray
+      Extra optimization constraints to be added to feasibility conditions,
+        in the form of c_mat_extra @ var + c0_vec_extra >= 0.
+    c0_vec_extra : numpy vector
+      Extra optimization constraints to be added to feasibility conditions,
+        in the form of c_mat_extra @ var + c0_vec_extra >=0.
+      
     Returns
     -------
     points : ndarray
@@ -870,10 +876,20 @@ class rop_vertex:
 
     c_mat,c0_vec=self.chart_check(chart)
 
-    # c_mat*var + c0_vec >= th, becomes A*var + b <=0
+    # c_mat*var + c0_vec - margin >= 0, becomes A*var + b <=0
     # where A = -c_mat, and b = th - c0_vec.
-    A=-c_mat # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
-    b=positive_threshold*np.ones(c0_vec.shape[0])-c0_vec
+    # With extra constraints, margin is always 0 for extra constraints,
+    # so margin_full = vstack((margin,zeros)) where zeros is of length len(c0_vec_extra)
+    if c_mat_extra: # if there are additional constraints
+      c_mat_full=np.vstack((c_mat,c_mat_extra))
+      c0_vec_full=np.vstack((c0_vec,c0_vec_extra))
+      margin_vec_full = np.vstack((margin*np.ones(c0_vec.shape[0]),np.zeros(c0_vec_extra.shape[0])))
+    else: # there are no additional constraints
+      c_mat_full=c_mat 
+      c0_vec_full = c0_vec
+      margin_vec_full = margin*np.ones(c0_vec.shape[0])
+    A=-c_mat_full # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
+    b=margin_vec_full - c0_vec_full
 
     points, feasible_point, hs = self.__get_convex_hull(A,b,bbox)
     return points,feasible_point,hs
@@ -933,9 +949,10 @@ class rop_vertex:
     return points[hull.vertices], feasible_point, hs
 
 
-  def vertex_hull_sampling(self,nsample,chart='x',positive_threshold=0,logmin=-10,logmax=10):
+  def vertex_hull_sampling(self,nsample,chart='x',positive_threshold=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
     """
     Sample points in the vertex's region of validity based on its hull of feasible regions.
+    Extra conditions (linear) can be added as c_mat_extra @ var + c0_vec_extra >= 0.
 
     Parameters
     ----------
@@ -957,6 +974,12 @@ class rop_vertex:
       logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
+    c_mat_extra : ndarray
+      Extra optimization constraints to be added to feasibility conditions,
+        in the form of c_mat_extra @ var + c0_vec_extra >= 0.
+    c0_vec_extra : numpy vector
+      Extra optimization constraints to be added to feasibility conditions,
+        in the form of c_mat_extra @ var + c0_vec_extra >=0.
 
     Returns
     -------
@@ -966,7 +989,7 @@ class rop_vertex:
       Each row (sample[i,:]) is a sampled point.
     """
     # first compute the convex hull for this vertex's validity and get the vertex points.
-    points,_,_=self.vertex_hull_of_validity(chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
+    points,_,_=self.vertex_hull_of_validity(chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
     # To sample a simplex in n-dim uniformly, take n uniform(0,1) random 
     #   variables and take difference after padding 0 at the beginning and
     #   1 at the end. This gives a vector of n-dim in the simplex, with
@@ -1567,7 +1590,7 @@ class binding_network:
     is_feasible_dict={'all':is_feasible_all,'finite':is_feasible_fin,'infinite':is_feasible_inf}
     return is_feasible_dict
 
-  def sampling_over_vertex_hull(self,nsample,is_finite_only=False, chart='x',logmin=-6,logmax=6,positive_threshold=0):
+  def sampling_over_vertex_hull(self,nsample,is_finite_only=False, chart='x',logmin=-6,logmax=6,positive_threshold=0,c_mat_extra=[],c0_vec_extra=[]):
     """
     Randomly sample points in the log space of chart variables,
       but instead of log-uniform, we first assign points to each vertex
@@ -1600,7 +1623,7 @@ class binding_network:
 
     Returns
     -------
-    sample_dict : dictionary of ndarray with shape nsample-by-dim_n
+    sample_vertex_dict : dictionary of ndarray with shape nsample-by-dim_n
       Key is the perm of each vertex. Value is the sample for that vertex.
     """
     if is_finite_only: 
@@ -1609,10 +1632,10 @@ class binding_network:
       finite_key='all'
     nvertex=len(self.vertex_dict[finite_key].keys())
     nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
-    sample_dict={}
+    sample_vertex_dict={}
     for key,vv in self.vertex_dict[finite_key].items():
-      sample_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
-    return sample_dict
+      sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
+    return sample_vertex_dict
 
   def activity_regime_construct(self,b_vec):
     # given b_vec, go through all vertices and their possible regimes
