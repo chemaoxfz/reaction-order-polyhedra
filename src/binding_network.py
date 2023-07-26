@@ -949,7 +949,7 @@ class rop_vertex:
     return points[hull.vertices], feasible_point, hs
 
 
-  def vertex_hull_sampling(self,nsample,chart='x',positive_threshold=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
+  def vertex_hull_sampling(self,nsample,chart='x', margin=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
     """
     Sample points in the vertex's region of validity based on its hull of feasible regions.
     Extra conditions (linear) can be added as c_mat_extra @ var + c0_vec_extra >= 0.
@@ -961,10 +961,10 @@ class rop_vertex:
     chart : str, optional
       A string indicating the chart that the opt_constraints are specified in.
       Choices are 'x','xak', and 'tk'.
-    positive_threshold : float, optional
+    margin : float, optional
       The vertex's feasibility conditions are inequalities, 
-        of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
-        where th is the positive threshold used here. Default to 1 (10-fold).
+        of the form c_mat*x + c0_vec >= margin (e.g. in 'x' chart),
+        where margin is the margin used here. Default to 0.
       This can be adjusted to be stronger/weaker requirements on dominance.
     logmin : float or ndarray vector
       logmin, logmax could be scalars, then it's the same value applied to 
@@ -989,7 +989,7 @@ class rop_vertex:
       Each row (sample[i,:]) is a sampled point.
     """
     # first compute the convex hull for this vertex's validity and get the vertex points.
-    points,_,_=self.vertex_hull_of_validity(chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
+    points,_,_=self.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
     # To sample a simplex in n-dim uniformly, take n uniform(0,1) random 
     #   variables and take difference after padding 0 at the beginning and
     #   1 at the end. This gives a vector of n-dim in the simplex, with
