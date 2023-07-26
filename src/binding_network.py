@@ -219,25 +219,35 @@ class rop_dom_regime:
 
   def chart_check_add(self,chart):
     if chart=='x':
-      try: c_mat_add=self.c_mat_add_x
+      try: 
+        c_mat_add=self.c_mat_add_x
+        c0_vec_add=self.c0_vec_add
       except AttributeError: # c_mat_add is not yet calculated
         self.calc_c_mat_add_x()
         c_mat_add=self.c_mat_add_x
+        c0_vec_add=self.c0_vec_add
     elif chart=='xak':
-      try: c_mat_add=self.c_mat_add_xak
+      try: 
+        c_mat_add=self.c_mat_add_xak
+        c0_vec_add=self.c_vec_add
       except AttributeError: # c_mat_add_xak is not yet calculated
         self.calc_c_mat_add_xak()
         c_mat_add=self.c_mat_add_xak
+        c0_vec_add=self.c0_vec_add
     elif chart=='tk':
-      try: c_mat_add=self.c_mat_add_tk
+      try: 
+        c_mat_add=self.c_mat_add_tk
+        c0_vec_add=self.c0_vec_add_tk
       except AttributeError: # c_mat_add_tk is not yet calculated
         self.calc_c_mat_add_tk()
         c_mat_add=self.c_mat_add_tk
+        c0_vec_add=self.c0_vec_add_tk
     else:
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
+    return c_mat_add,c0_vec_add
 
   def feasibility_test(self,chart='x',opt_constraints=[],positive_threshold=1e-5,is_asymptotic=True):
-    c_mat_add = self.chart_check_add(chart)
+    c_mat_add,c0_vec_add = self.chart_check_add(chart)
     vv=self.vertex
     opt_var=self.bn.opt_var
     opt_constraints_test=[]
@@ -251,8 +261,14 @@ class rop_dom_regime:
     return is_feasible
 
   def calc_c_mat_add_x(self):
-    # compute feasibility conditions of this dominance regime in addition to vertex feasibility conditions
-    # in the form of c_mat_add_x * x + c0_vec_add > 0, i.e. in chart x.
+    # Compute feasibility conditions of this dominance regime in addition 
+    #   to vertex feasibility conditions in the form of 
+    #   c_mat_add_x * logx + c0_vec_add > 0, i.e. in chart x.
+    # Each condition comes from and inequality of the form 
+    #   b_j1 x_j1 > b_j2 x_j2, which can be written as 
+    #   log(x_j1) - log(x_j2) + [log(b_j1) - log(b_j2)] > 0.
+    # So the corresponding row of c_mat_add_x are all 0's except 1 at j1 
+    #   and -1 at j2. And corresponding entry of c0_vec is log(b_j1) - log(b_j2).
     j=self.row_idx
     b_vec=np.array(self.b_vec)
     nnz_b=np.where(b_vec > 0)[0]
@@ -271,7 +287,7 @@ class rop_dom_regime:
 
   def calc_c_mat_add_xak(self):
     # compute feasibility conditions of this dominance regime in addition to vertex feasibility conditions
-    # in the form of c_mat_add_xak * log(xa,k) > 0, i.e. in chart log(xa,k)
+    # in the form of c_mat_add_xak * log(xa,k) + c0_vec_add > 0, i.e. in chart log(xa,k)
     try: c_mat_add_x=self.c_mat_add_x
     except AttributeError: # c_mat_add is not yet calculated
       self.calc_c_mat_add_x()
@@ -286,19 +302,18 @@ class rop_dom_regime:
   def calc_c_mat_add_tk(self):
     # compute feasibility conditions of this dominance regime in addition to vertex feasibility conditions
     # in the form of c_mat_add_tk * log(t,k) > 0, i.e. in chart log(t,k)
+    assert self.vertex.orientation!=0, "only finite vertices can have non-singular (t,k) chart"
     try: c_mat_add_x=self.c_mat_add_x
     except AttributeError: # c_mat_add is not yet calculated
       self.calc_c_mat_add_x()
       c_mat_add_x=self.c_mat_add_x
-    try: tk2x_map=self.vertex.tk2x_map #tk2x_map is vertex-specific
-    except AttributeError:
-      self.vertex.vertex_calc_tk2x_map()
-      tk2x_map=self.vertex.xak2x_map
-    c_mat_add_tk=c_mat_add_x.dot(tk2x_map)
+    # The equivalence here is the following:
+    # c_mat_tk @ log(t,k) + c0_vec_tk >=0  <=>  c_mat_x @ logx + c0_vec >=0
+    # and we use h_mat*log(t,k)=log(x) at the vertex
+    c_mat_add_tk=c_mat_add_x.dot(self.vertex.h_mat) 
+    c0_vec_add_tk=self.c0_vec_add - c_mat_add_x.dot(self.h_mat.dot(self.m0_vec))
     self.c_mat_add_tk=c_mat_add_tk
-    ###############XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    #######XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    ##### THIS SHOULD HAVE c0_vec_add_tk??????
+    self.c0_vec_tk=c0_vec_add_tk
 
   def find_neighbors(self):
     vv=self.vertex
@@ -454,6 +469,67 @@ class rop_dom_regime:
   #   # print the expression for t=x, x(t,k) and inequalities for the
   #   # region of validity for this dominance regime,
   #   # using the labels of x,t,k
+
+  def hull_sampling(self,nsample,chart='x', margin=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
+    """
+    Sample points in the dom_regime's region of validity based on its hull of feasible regions.
+    Extra conditions (linear) can be added as c_mat_extra @ var + c0_vec_extra >= 0.
+    This is done by adding dom_regime's additional constraints to its vertex's sampling function.
+
+    Parameters
+    ----------
+    nsample : int
+      Number of points to be sampled.
+    chart : str, optional
+      A string indicating the chart that the opt_constraints are specified in.
+      Choices are 'x','xak', and 'tk'.
+    margin : float, optional
+      The dom_regime's feasibility conditions are inequalities, 
+        of the form c_mat*x + c0_vec >= margin (e.g. in 'x' chart),
+        where margin is the margin used here. Default to 0.
+      This can be adjusted to be stronger/weaker requirements on dominance.
+    logmin : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+    logmax : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+    c_mat_extra : ndarray
+      Extra optimization constraints to be added to feasibility conditions,
+        in the form of c_mat_extra @ var + c0_vec_extra >= 0.
+    c0_vec_extra : numpy vector
+      Extra optimization constraints to be added to feasibility conditions,
+        in the form of c_mat_extra @ var + c0_vec_extra >=0.
+
+    Returns
+    -------
+    sample : ndarray of shape nsample-by-dim_n
+      dim_n is number of species in the binding network.
+      Sampled points satisfying the feasibility conditions of this vertex.
+      Each row (sample[i,:]) is a sampled point.
+    """
+    # Get the additional constraints for the dom_regime
+    c_mat_add,c0_vec_add=self.chart_check_add(chart=chart)
+    # Combine dom_regime constraints with given additional constraints 
+    #   to get the full constraints to be added to vertex validity.
+    if np.any(c_mat_extra): # if there are additional constraints
+      c_mat_extra_full=np.vstack((c_mat_add,c_mat_extra))
+      # Incorporate margin into c0_vec_add, since this won't be added again later in the vertex.
+      c0_vec_full=np.concatenate((c0_vec_add-margin,c0_vec_extra))
+    else: # there are no additional constraints
+      c_mat_extra_full = c_mat_add
+      c0_vec_extra_full = c0_vec_add-margin
+    # Get the hull using the vertex's method, but with additional
+    #   constraints from the dom_regime.
+    points,_,_=self.vertex.vertex_hull_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra_full,c0_vec_extra=c0_vec_extra_full)
+    ncoeffs=points.shape[0]
+    temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
+    coeffs=np.diff(temp,prepend=0,append=1,axis=1)
+    sample=coeffs@points # this has shape nsample-by-dim_n
+    return sample
+
 
 class rop_vertex:
   """
