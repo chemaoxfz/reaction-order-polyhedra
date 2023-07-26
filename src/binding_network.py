@@ -517,6 +517,7 @@ class rop_dom_regime:
     if np.any(c_mat_extra): # if there are additional constraints
       c_mat_extra_full=np.vstack((c_mat_add,c_mat_extra))
       # Incorporate margin into c0_vec_add, since this won't be added again later in the vertex.
+      breakpoint()
       c0_vec_full=np.concatenate((c0_vec_add-margin*np.ones(c0_vec_add.shape[0]),c0_vec_extra))
     else: # there are no additional constraints
       c_mat_extra_full = c_mat_add
