@@ -271,12 +271,12 @@ class rop_dom_regime:
     #   and -1 at j2. And corresponding entry of c0_vec is log(b_j1) - log(b_j2).
     j=self.row_idx
     b_vec=np.array(self.b_vec)
-    nnz_b=np.where(b_vec > 0)[0]
-    n_ineq=(len(nnz_b)-1,self.bn.dim_n)
-    c_mat_add_x=np.zeros(n_ineq)
+    idx_nonzero_b=np.where(b_vec > 0)[0]
+    n_ineq=len(idx_nonzero_b)-1
+    c_mat_add_x=np.zeros(n_ineq,self.bn.dim_n)
     c0_vec_add=np.zeros(n_ineq)
     counter=0
-    for jp in nnz_b:
+    for jp in idx_nonzero_b:
       if jp!=j:
         c_mat_add_x[counter,j]=1
         c_mat_add_x[counter,jp]=-1
@@ -968,7 +968,7 @@ class rop_vertex:
     A=-c_mat_full # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
     b=margin_vec_full - c0_vec_full
 
-    points, feasible_point, hs = self.__get_convex_hull(A,b,bbox)
+    points, feasible_point, hs = self.get_convex_hull(A,b,bbox)
     return points,feasible_point,hs
 
   def __feasible_point_calc(self,A, b):
@@ -1012,7 +1012,7 @@ class rop_vertex:
     return hs
 
 
-  def __get_convex_hull(self,A_local, b_local, bbox):
+  def get_convex_hull(self,A_local, b_local, bbox):
     # Given A,b for halfspace intersection A x + b <=0,
     #   and bounding box bbox,
     #   get the vertices of the convex hull that formed.
