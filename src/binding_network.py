@@ -1021,7 +1021,7 @@ class rop_vertex:
     hs = self.__hs_intersection(A_bounded, b_bounded, feasible_point)
     # hs = hs_intersection(A, b, interior_point)
     points = hs.intersections
-    hull = ConvexHull(points)
+    hull = ConvexHull(points,qhull_options='QJ')
     return points[hull.vertices], feasible_point, hs
 
 
