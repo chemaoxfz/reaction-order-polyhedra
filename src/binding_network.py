@@ -229,7 +229,7 @@ class rop_dom_regime:
     elif chart=='xak':
       try: 
         c_mat_add=self.c_mat_add_xak
-        c0_vec_add=self.c_vec_add
+        c0_vec_add=self.c0_vec_add
       except AttributeError: # c_mat_add_xak is not yet calculated
         self.calc_c_mat_add_xak()
         c_mat_add=self.c_mat_add_xak
@@ -496,10 +496,10 @@ class rop_dom_regime:
       logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
-    c_mat_extra : ndarray
+    c_mat_extra : ndarray, shape (n_constraints, n_var)
       Extra optimization constraints to be added to feasibility conditions,
         in the form of c_mat_extra @ var + c0_vec_extra >= 0.
-    c0_vec_extra : numpy vector
+    c0_vec_extra : numpy vector, shape (n_constraints,)
       Extra optimization constraints to be added to feasibility conditions,
         in the form of c_mat_extra @ var + c0_vec_extra >=0.
 
@@ -574,30 +574,30 @@ class rop_vertex:
     Only defined for finite (non-singular) vertices.
     Not always defined, computed and stored once log derivative is 
       computed by calling self.vertex_ld_calc().
-  c_mat_x : numpy array
+  c_mat_x : numpy array, shape (n_constraints, n_var)
     Matrix encoding feasibility condition of this vertex in 'x' chart, c_mat_x * logx + c0_vec > 0.
     If the feasibility condition is considered "asymptotic", i.e. in positive
       projective measure rather than Lebesgue measure (so a ray is an infinitesimal
       of volume, not a point), then c0_vec is dropped.
     Not always defined, computed and stored when used in feasibility tests.
-  c_mat_xak : numpy array
+  c_mat_xak : numpy array, shape (n_constraints, n_var)
     Matrix encoding feasibility condition of this vertex in 'xak' chart, c_mat_xak * (logxa, logk) + c0_vec > 0.
     If the feasibility condition is considered "asymptotic", i.e. in positive
       projective measure rather than Lebesgue measure (so a ray is an infinitesimal
       of volume, not a point), then c0_vec is dropped.
     Not always defined, computed and stored when used in feasibility tests.
-  c0_vec : numpy vector
+  c0_vec : numpy vector, shape (n_constraints,)
     Numpy vector encoding a part of the feasibility condition of this vertex, same
       for 'x' chart and 'xak' chart.
     Not always defined, computed and stored when used in feasibility tests.
-  c_mat_tk : numpy array
+  c_mat_tk : numpy array, shape (n_constraints, n_var)
     Matrix encoding feasibility condition of this vertex in 'tk' chart, c_mat_tk * (logt, logk) + c0_vec_tk > 0.
     If the feasibility condition is considered "asymptotic", i.e. in positive
       projective measure rather than Lebesgue measure (so a ray is an infinitesimal
       of volume, not a point), then c0_vec_tk is dropped.
     Only defined for finite (non-singular) vertices.
     Not always defined, computed and stored when used in feasibility tests.
-  c0_vec_tk : numpy vector
+  c0_vec_tk : numpy vector, shape (n_constraints,)
     Numpy vector encoding a part of the feasibility condition of this vertex in the
       'tk' chart.
     Only defined for finite (non-singular) vertices.
@@ -868,10 +868,10 @@ class rop_vertex:
     
     Returns
     ---------
-    c_mat : ndarray
+    c_mat : ndarray, shape (n_constraints, n_var)
       matrix used in this vertex's feasibility condition in the 
         desired chart, e.g. it is c_mat * x + c0_vec > 0 in chart 'x'.
-    c0_vec : ndarray vector
+    c0_vec : ndarray vector, shape (n_constraints,)
       The vector used in this vertex's feasibility condition in the
         desired chart, e.g. it is c_mat * x + c0_vec > 0 in chart 'x'.
     """
@@ -925,10 +925,10 @@ class rop_vertex:
       logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
-    c_mat_extra : ndarray
+    c_mat_extra : ndarray, shape (n_constraints, n_var)
       Extra optimization constraints to be added to feasibility conditions,
         in the form of c_mat_extra @ var + c0_vec_extra >= 0.
-    c0_vec_extra : numpy vector
+    c0_vec_extra : numpy vector, shape (n_constraints,)
       Extra optimization constraints to be added to feasibility conditions,
         in the form of c_mat_extra @ var + c0_vec_extra >=0.
       
@@ -1051,10 +1051,10 @@ class rop_vertex:
       logmin, logmax could be scalars, then it's the same value applied to 
         every variable. 
       They could also be vectors of length dim_n.
-    c_mat_extra : ndarray
+    c_mat_extra : ndarray, shape (n_constraints, n_var)
       Extra optimization constraints to be added to feasibility conditions,
         in the form of c_mat_extra @ var + c0_vec_extra >= 0.
-    c0_vec_extra : numpy vector
+    c0_vec_extra : numpy vector, shape (n_constraints,)
       Extra optimization constraints to be added to feasibility conditions,
         in the form of c_mat_extra @ var + c0_vec_extra >=0.
 
