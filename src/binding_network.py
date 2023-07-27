@@ -523,7 +523,7 @@ class rop_dom_regime:
       c0_vec_extra_full = c0_vec_add-margin
     # Get the hull using the vertex's method, but with additional
     #   constraints from the dom_regime.
-    points,_,_=self.vertex.vertex_hull_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra_full,c0_vec_extra=c0_vec_extra_full)
+    points,_,_=self.vertex.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra_full,c0_vec_extra=c0_vec_extra_full)
     ncoeffs=points.shape[0]
     temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
     coeffs=np.diff(temp,prepend=0,append=1,axis=1)
