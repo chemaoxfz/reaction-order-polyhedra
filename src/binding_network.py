@@ -1007,7 +1007,7 @@ class rop_vertex:
     # HalfspaceIntersection take the convention halfspaces=[A;b]
     #   to indicate A x + b <= 0.
     halfspaces = np.hstack((A, b[:, None]))
-    hs = HalfspaceIntersection(halfspaces, feasible_point)
+    hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='QJ')
     return hs
 
 
@@ -1021,7 +1021,7 @@ class rop_vertex:
     hs = self.__hs_intersection(A_bounded, b_bounded, feasible_point)
     # hs = hs_intersection(A, b, interior_point)
     points = hs.intersections
-    hull = ConvexHull(points,qhull_options='QJ')
+    hull = ConvexHull(points)
     return points[hull.vertices], feasible_point, hs
 
 
