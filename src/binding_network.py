@@ -1018,6 +1018,7 @@ class rop_vertex:
     # Modified from https://stackoverflow.com/questions/65343771/solve-linear-inequalities
     A_bounded, b_bounded = self.__add_bbox(A_local, b_local, bbox)
     feasible_point = self.__feasible_point_calc(A_bounded, b_bounded)
+    breakpoint()
     hs = self.__hs_intersection(A_bounded, b_bounded, feasible_point)
     # hs = hs_intersection(A, b, interior_point)
     points = hs.intersections
