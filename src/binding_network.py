@@ -273,7 +273,7 @@ class rop_dom_regime:
     b_vec=np.array(self.b_vec)
     idx_nonzero_b=np.where(b_vec > 0)[0]
     n_ineq=len(idx_nonzero_b)-1
-    c_mat_add_x=np.zeros(n_ineq,self.bn.dim_n)
+    c_mat_add_x=np.zeros((n_ineq,self.bn.dim_n))
     c0_vec_add=np.zeros(n_ineq)
     counter=0
     for jp in idx_nonzero_b:
