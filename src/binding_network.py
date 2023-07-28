@@ -1514,7 +1514,7 @@ class binding_network:
     # dlogx/dtau (x0) = dlogx/dlog(t,k) (x0) * dlog(t,k)/dtau (x0)
     #                 = dlogx/dlog(t,k) (x0) * (y1-y0)
     # dlogx/dlog(t,k) (x0) is log derivative matrix evaluated at x0.
-    time_derivative_func=lambda tau,logx: self.logder_num(10**logx,a_mat=a_mat).dot(y1-y0)
+    time_derivative_func=lambda tau,logx: self.logder_num(logx,a_mat=a_mat).dot(y1-y0)
     sol=solve_ivp(time_derivative_func, [0, 1], logx0)
     logx=sol.y[:,-1]
     return logx
