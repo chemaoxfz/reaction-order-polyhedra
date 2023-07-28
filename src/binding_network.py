@@ -1723,7 +1723,8 @@ class binding_network:
     vertex_plot_dict={}
     if vertex_perm_list: # vertex_perm_list is not empty
       nvertex=len(vertex_perm_list)
-      [vertex_plot_dict[perm]=self.vertex_dict['all'][perm] for perm in vertex_perm_list]
+      for perm in vertex_perm_list:
+        vertex_plot_dict[perm]=self.vertex_dict['all'][perm]
     else: # plot all vertices
       if is_finite_only: 
         finite_key='finite'
