@@ -759,9 +759,19 @@ class rop_vertex:
     return is_feasible
 
   def vertex_find_neighbors(self):
-    # given a binding network with (already-computed) vertex dictionaries,
-    # compute this vertex's neighbors and store in self.neighbors,
-    # depending on whether it is finite or infinite.
+    # Given a binding network with (already-computed) vertex dictionaries,
+    #   compute this vertex's neighbors and store in self.neighbors,
+    #   depending on whether it is finite or infinite.
+    # Neighbor is defined as changing one row by moving the "1" to another place.
+    # Another case of "higher order" neighbor is via "higher order zeros"
+    #   For example, (0,7,7) can have a neighbor (7,1,7) because it has 
+    #   neighbor (7,7,7), which is shared with (7,1,7).
+    #   Because we do not consider (7,7,7) as an "infinite vertex",
+    #   since >1 order infinite vertices only matter as a 
+    #   "connecting region". 
+    #   This can be defined as perm1's repeating index
+    #     is the same as perm2's repeating index. 
+    #   Since whenever this is the case, there is the regim
     neighbors_fin={}
     neighbors_inf={}
     for perm,vv in self.bn.vertex_dict['finite'].items():
@@ -769,11 +779,12 @@ class rop_vertex:
       # if np.sum(temp)==1: #the difference is just one row
       if np.sum(np.abs(self.p_mat-vv.p_mat))==2: #difference is in just one row and it's -1, 1.
         neighbors_fin[perm]=vv
-    for perm,vv in self.bn.vertex_dict['infinite'].items():
-      # temp=[not np.all(self.p_mat[i,:]==vv.p_mat[i,:]) for i in range(self.bn.dim_d)]
-      # if np.sum(temp)==1: #the difference is just one row
-      if np.sum(np.abs(self.p_mat-vv.p_mat))==2: #difference is in just one row and it's -1, 1.
-        neighbors_inf[perm]=vv
+    if self.orientation==0:
+      for perm,vv in self.bn.vertex_dict['infinite'].items():
+        # temp=[not np.all(self.p_mat[i,:]==vv.p_mat[i,:]) for i in range(self.bn.dim_d)]
+        # if np.sum(temp)==1: #the difference is just one row
+        if np.sum(np.abs(self.p_mat-vv.p_mat))==2: #difference is in just one row and it's -1, 1.
+          neighbors_inf[perm]=vv
     neighbors_all={**neighbors_fin,**neighbors_inf}
     self.neighbors_dict={'finite':neighbors_fin,'infinite':neighbors_inf,'all':neighbors_all}
 
@@ -1315,13 +1326,13 @@ class binding_network:
     l_mat=np.concatenate((np.eye(d),l2_mat),axis=1)
     return l_mat
 
-  def logder_num(self,x,a_mat=np.array([])):
+  def logder_num(self,logx,a_mat=np.array([])):
     """compute the numerical log derivative of the binding network at point x.
 
     Parameters
     ----------
-    x : numpy vector
-      Vector of concentrations for all the species.
+    logx : numpy vector
+      Vector of concentrations for all the species in log, base-10.
     a_mat : numpy array, optional
       Matrix defining the variables log derivative is taken in terms of.
       Assumes all entries are non-negative, and each row has at least one positive entry.
@@ -1332,8 +1343,8 @@ class binding_network:
     logder: numpy array
        n-by-n matrix of log derivative of x to (t,k), where t=l_mat_temp * x, n is number of species.
     """
-    #assumes all x are positive
-    assert np.all(x>0)
+    # #assumes all x are positive
+    # assert np.all(x>0)
     n_mat=self.n_mat
     if not np.any(a_mat): # no a_mat argument is given
       a_mat=self.l_mat
@@ -1341,27 +1352,27 @@ class binding_network:
       assert a_mat.shape==(self.dim_d,self.dim_n), f"the shape of L matrix should be {self.dim_d} by {self.dim_n}."
       assert np.all(a_mat>=0), "all entries of A matrix should be non-negative."
       assert np.all(a_mat.dot(np.ones(self.dim_n))>0), "each row of A matrix should have at least one positive entry."
-
+    x=10**logx
     t_inv = 1/(a_mat.dot(x))
     temp=a_mat*x
     upper=(temp.T*t_inv).T
     logder_inv=np.concatenate((upper,n_mat),axis=0)
     return np.linalg.inv(logder_inv)
 
-  def logder_num_atomic(self,xa,k,a_mat=np.array([])):
+  def logder_num_atomic(self,logxa,logk,a_mat=np.array([])):
     """compute the numerical log derivative of dlog(x)/dlog(a_mat*x,k) at a point
-    specified by (xa,k), where xa is concentration of atomic species,
-    k is binding constants.
+    specified by log(xa,k), where xa is concentration of atomic species,
+    k is binding constants. log is base 10.
     Assumes the network is atomic, and n_mat,a_mat have atomic species coming first.
 
     Parameters
     ----------
-    xa : numpy vector
+    logxa : numpy vector
       Vector of concentrations for the atomic species.
-      All entries are positive.
-    k : numpy vector
+      Log is base 10.
+    logk : numpy vector
       Vector of binding constants.
-      All entries are positive.
+      Log is base 10.
     a_mat : a_mat : numpy array, optional
       Matrix defining the variables log derivative is taken in terms of.
       Assumes all entries are non-negative, and each row has at least one positive entry.
@@ -1382,13 +1393,13 @@ class binding_network:
       assert np.all(a_mat.dot(np.ones(self.dim_n))>0), "each row of A matrix should have at least one positive entry."
 
     d,n=a_mat.shape
-    temp1=(a_mat.T).dot(np.log(xa))
+    temp1=(a_mat.T).dot(logxa)
     n2_mat=n_mat[:,d:]
-    temp2=np.linalg.inv(n2_mat).dot(np.log(k))
-    x=np.exp(temp1 + np.pad(temp2,(d,0),mode='constant',constant_values=(0,0)))
-    return self.logder_num(x,a_mat)
+    temp2=np.linalg.inv(n2_mat).dot(logk)
+    logx=temp1 + np.pad(temp2,(d,0),mode='constant',constant_values=(0,0))
+    return self.logder_num(logx,a_mat)
 
-  def logder_num_activity(self,b_vec,x,ld_mat):
+  def logder_num_activity(self,b_vec,logx,ld_mat):
     """given a logder matrix, compute the logder of b^T x.
 
     Parameters
@@ -1396,8 +1407,9 @@ class binding_network:
     b_vec : numpy vector
       Vector indicating which species are included in the catalytic activity.
       All entries are non-negative, with at least one nonzero.
-    x : numpy vector
-      x-vector indicating the point at which the logder is evaluated.
+    logx : numpy vector
+      logx-vector indicating the point at which the logder is evaluated.
+      log is base 10.
     ld_mat : numpy array
       n x n matrix for dlogx/dlog(t,k) at point x on the manifold.
 
@@ -1408,7 +1420,8 @@ class binding_network:
     """
     assert np.all(b_vec>=0), "all entries of b_vec should be non-negative."
     assert np.sum(b_vec)>0, "there should be at least one nonzero entry in b_vec."
-    assert np.all(x>0), "all entries of x should be positive"
+    # assert np.all(x>0), "all entries of x should be positive"
+    x=10**logx
     bx=b_vec*x
     coeff=bx/np.sum(bx)
     ld_activity=coeff.dot(ld_mat)
@@ -1464,15 +1477,16 @@ class binding_network:
     temp=np.concatenate((upper,lower),axis=0)
     self.xak2x_map=temp
 
-  def tk2x_num(self,t,k,a_mat=np.array([])):
-    """compute the x value by numerical integration along the equilibrium manifold using log derivatives.
-    The point on the manifold defined by (t,k) is the same as that defined by x.
+  def tk2x_num(self,logt,logk,a_mat=np.array([])):
+    """compute the logx value by numerical integration along the equilibrium manifold using log derivatives.
+    The point on the manifold defined by (logt,logk) is the same as that defined by logx.
 
     Parameters
     ----------
-    t : numpy vector
-      Vector numerical value for total variables that define the x point. p_x = p_(t,k). log is base 10.
-    k : numpy vector
+    logt : numpy vector
+      Vector numerical value for total variables that define the x point. p_(logx) = p_(logt,logk). 
+      log is base 10.
+    logk : numpy vector
       Vector numerical value for binding constants that define the x to be calculated. log is base 10.
     a_mat: numpy array, optional
       The matrix defining the total variables t=a_mat*x that the log derivatives are taken with respect to.
@@ -1480,7 +1494,7 @@ class binding_network:
 
     Returns
     -------
-    x: numpy vector
+    logx: numpy vector
       The numerical value of x at this point. log is base 10.
     """
     if not np.any(a_mat): # no a_mat argument is given
@@ -1488,8 +1502,6 @@ class binding_network:
 
     # the initial point is always x=1, (t,k) = (A*1, 1)
     # or, in log, logx=0, (logt,logk) = (log(A*1),0)
-    logt=np.log10(t)
-    logk=np.log10(k)
 
     logt0=np.log10(np.sum(a_mat,axis=1))
     logk0=np.zeros(self.dim_r)
@@ -1506,8 +1518,7 @@ class binding_network:
     time_derivative_func=lambda tau,logx: self.logder_num(10**logx,a_mat=a_mat).dot(y1-y0)
     sol=solve_ivp(time_derivative_func, [0, 1], logx0)
     logx=sol.y[:,-1]
-    x=10**logx
-    return x
+    return logx
 
 # BELOW ARE VERTEX RELATED METHODS
 
