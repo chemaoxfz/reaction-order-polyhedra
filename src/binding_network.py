@@ -1420,7 +1420,6 @@ class binding_network:
     """
     assert np.all(b_vec>=0), "all entries of b_vec should be non-negative."
     assert np.sum(b_vec)>0, "there should be at least one nonzero entry in b_vec."
-    # assert np.all(x>0), "all entries of x should be positive"
     x=10**logx
     bx=b_vec*x
     coeff=bx/np.sum(bx)
@@ -1677,7 +1676,7 @@ class binding_network:
     is_feasible_dict={'all':is_feasible_all,'finite':is_feasible_fin,'infinite':is_feasible_inf}
     return is_feasible_dict
 
-  def sampling_over_vertex_hull(self,nsample,is_finite_only=False, chart='x',logmin=-6,logmax=6,positive_threshold=0,c_mat_extra=[],c0_vec_extra=[]):
+  def sampling_over_vertex_hull(self,nsample,vertex_perm_list=[],is_finite_only=False, chart='x',logmin=-6,logmax=6,margin=0,c_mat_extra=[],c0_vec_extra=[]):
     """
     Randomly sample points in the log space of chart variables,
       but instead of log-uniform, we first assign points to each vertex
@@ -1688,16 +1687,22 @@ class binding_network:
     nsample : int
       The number of points to be sampled in the space of chart variables.
       This is divided evenly to all the vertices of this binding network.
-    is_finite_only : bool
+    is_finite_only : bool, optional
+      Useful only when vertex_perm_list=[], so that all vertices are sampled.
       If True, only finite vertices are sampled. This also allows chart 'tk' to work.
       If False, both finite and infinite vertices are sampled.
+      Defaults to False.
+    vertex_perm_list : list of vertex's perm tuples, optional
+      The list of perms indexing the vertices to be sampled.
+      e.g. [(0,1,2),(0,1,3)].
+      Defaults to empty list []. If empty, sample all vertices.
     chart : str, optional
       A string indicating the chart that the opt_constraints are specified in.
-      Choices are 'x','xak', and 'tk'.
-    positive_threshold : float, optional
+      Choices are 'x','xak', and 'tk'. Defaults to 'x'.
+    margin : float, optional
       The vertex's feasibility conditions are inequalities, 
-        of the form c_mat*x + c0_vec > th (e.g. in 'x' chart),
-        where th is the positive threshold used here. Default to 1 (10-fold).
+        of the form c_mat*logx + c0_vec > margin (e.g. in 'x' chart),
+        where margin is the positive threshold used here. Default to 0.
       This can be adjusted to be stronger/weaker requirements on dominance.
     logmin : float or ndarray vector
       logmin, logmax could be scalars, then it's the same value applied to 
@@ -1713,15 +1718,24 @@ class binding_network:
     sample_vertex_dict : dictionary of ndarray with shape nsample-by-dim_n
       Key is the perm of each vertex. Value is the sample for that vertex.
     """
-    if is_finite_only: 
-      finite_key='finite'
-    else: 
-      finite_key='all'
-    nvertex=len(self.vertex_dict[finite_key].keys())
+    
+    # calculate number of vertex to be plotted and the dictionary of vertices.
+    vertex_plot_dict={}
+    if vertex_perm_list: # vertex_perm_list is not empty
+      nvertex=len(vertex_perm_list)
+      [vertex_plot_dict[perm]=self.vertex_dict['all'][perm] for perm in vertex_perm_list]
+    else: # plot all vertices
+      if is_finite_only: 
+        finite_key='finite'
+      else: 
+        finite_key='all'
+      nvertex=len(self.vertex_dict[finite_key].keys())
+      vertex_plot_dict=self.vertex_dict[finite_key]
+    # now sample each vertex.
     nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
     sample_vertex_dict={}
-    for key,vv in self.vertex_dict[finite_key].items():
-      sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,positive_threshold=positive_threshold,logmin=logmin,logmax=logmax)
+    for key,vv in vertex_plot_dict.items():
+      sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,margin=margin,logmin=logmin,logmax=logmax)
     return sample_vertex_dict
 
   def activity_regime_construct(self,b_vec):
