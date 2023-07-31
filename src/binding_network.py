@@ -1347,8 +1347,14 @@ class binding_network:
 
     Returns
     -------
-    logder: numpy array
-       n-by-n matrix of log derivative of x to (t,k), where t=a_mat@x, n is number of species.
+    logder: ndarray, shape (n_points,dim_n,dim_n)
+      array of n-by-n matrix of log derivative of x to (t,k), where 
+        t=a_mat@x, n is number of species.
+    logx : ndarray, shape (n_points,dim_n)
+      array of logx that the logvar points correspond to.
+        This is returned since all input var, regardless of chart,
+        is mapped to logx chart first. 
+        So we also return this for convenience.
     """
     # first check a_mat makes sense.
     if not np.any(a_mat): # no a_mat argument is given
@@ -1363,17 +1369,17 @@ class binding_network:
     logders=np.empty((logvar.shape[0],self.dim_n,self.dim_n))
     if chart=='x':
       for i in range(npts):
-        logders[i]=self.logder_x_num(logvar[i],a_mat)
+        logders[i],logx=self.logder_x_num(logvar[i],a_mat)
     elif chart=='xak':
       assert self.is_atomic, 'the binding network is not atomic, cannot use xak chart'
       for i in range(npts):
-        logders[i]=self.logder_xak_num(logvar[i],a_mat)
+        logders[i],logx=self.logder_xak_num(logvar[i],a_mat)
     elif chart=='tk':
       for i in range(npts):
-        logders[i]=self.logder_tk_num(logvar[i],a_mat)
+        logders[i],logx=self.logder_tk_num(logvar[i],a_mat)
     else: 
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
-    return logders
+    return logders,logx
 
   def logder_x_num(self,logx,a_mat):
     """compute the numerical log derivative of the binding network at one point in chart x.
@@ -1388,15 +1394,20 @@ class binding_network:
 
     Returns
     -------
-    logder: numpy array
-       n-by-n matrix of log derivative of x to (t,k), where t=a_mat@x, n is number of species.
-    """
+    logder: ndarray, shape (n_points,dim_n,dim_n)
+      array of n-by-n matrix of log derivative of x to (t,k), where 
+        t=a_mat@x, n is number of species.
+    logx : ndarray, shape (n_points,dim_n)
+      array of logx that the logvar points correspond to.
+        This is returned since all input var, regardless of chart,
+        is mapped to logx chart first. 
+        So we also return this for convenience."""
     x=10**logx
     t_inv = 1/(a_mat.dot(x))
     temp=a_mat*x
     upper=(temp.T*t_inv).T
     logder_inv=np.concatenate((upper,self.n_mat),axis=0)
-    return np.linalg.inv(logder_inv)
+    return np.linalg.inv(logder_inv),logx
 
   def logder_xak_num(self,logxak,a_mat):
     """compute the numerical log derivative of dlog(x)/dlog(a_mat*x,k) at a point
@@ -1416,8 +1427,14 @@ class binding_network:
 
     Returns
     -------
-    logder: numpy array
-       n-by-n matrix of log derivative of x to (t,k), where t=a_mat @ x, n is number of species.
+    logder: ndarray, shape (n_points,dim_n,dim_n)
+      array of n-by-n matrix of log derivative of x to (t,k), where 
+        t=a_mat@x, n is number of species.
+    logx : ndarray, shape (n_points,dim_n)
+      array of logx that the logvar points correspond to.
+        This is returned since all input var, regardless of chart,
+        is mapped to logx chart first. 
+        So we also return this for convenience.
     """
     ## commented out are old code that directly calculate logx, now we use stored map.
     # d=self.dim_d
@@ -1429,7 +1446,7 @@ class binding_network:
     # logx=temp1 + np.pad(temp2,(d,0),mode='constant',constant_values=(0,0))
 
     logx=self.xak2x_num(logxak)
-    return self.logder_x_num(logx,a_mat)
+    return self.logder_x_num(logx,a_mat),logx
 
   def logder_tk_num(self,logtk,a_mat):
     """compute the numerical log derivative of dlog(x)/dlog(a_mat@x,k) at a point
@@ -1448,11 +1465,17 @@ class binding_network:
 
     Returns
     -------
-    logder: numpy array
-       n-by-n matrix of log derivative of x to (t,k), where t=a_mat @ x, n is number of species.
+    logder: ndarray, shape (n_points,dim_n,dim_n)
+      array of n-by-n matrix of log derivative of x to (t,k), where 
+        t=a_mat@x, n is number of species.
+    logx : ndarray, shape (n_points,dim_n)
+      array of logx that the logvar points correspond to.
+        This is returned since all input var, regardless of chart,
+        is mapped to logx chart first. 
+        So we also return this for convenience.
     """
     logx=self.tk2x_num(logtk)
-    return self.logder_x_num(logx,a_mat)
+    return self.logder_x_num(logx,a_mat),logx
 
   def logder_activity_num(self,b_vec,logx_array,ld_mat_array):
     """given a logder matrix, compute the logder of b^T x.
