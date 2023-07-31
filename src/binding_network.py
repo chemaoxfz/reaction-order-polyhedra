@@ -1454,31 +1454,45 @@ class binding_network:
     logx=self.tk2x_num(logtk)
     return self.logder_x_num(logx,a_mat)
 
-  def logder_num_activity(self,b_vec,logx,ld_mat):
+  def logder_activity_num(self,b_vec,logx_array,ld_mat_array):
     """given a logder matrix, compute the logder of b^T x.
 
     Parameters
     ----------
-    b_vec : numpy vector
+    b_vec : numpy vector, shape (dim_n,)
       Vector indicating which species are included in the catalytic activity.
       All entries are non-negative, with at least one nonzero.
-    logx : numpy vector
-      logx-vector indicating the point at which the logder is evaluated.
-      log is base 10.
-    ld_mat : numpy array
-      n x n matrix for dlogx/dlog(t,k) at point x on the manifold.
+    logx_array : ndarray, shape (n_points,dim_n)
+      array of logx-vector indicating the point at which the 
+      logder is evaluated. log is base 10.
+    ld_mat_array : ndarray, shape (n_points,dim_n,dim_n)
+      array of n x n matrix for dlogx/dlog(t,k) at point x
+        on the manifold.
 
     Returns
     -------
-    ld_activity: numpy vector
-       vector for dlog(b^T x)/dlog(t,k)
+    ld_activity: ndarray, shape (n_points,dim_n)
+       array of vectors for dlog(b^T x)/dlog(t,k)
     """
     assert np.all(b_vec>=0), "all entries of b_vec should be non-negative."
     assert np.sum(b_vec)>0, "there should be at least one nonzero entry in b_vec."
-    x=10**logx
-    bx=b_vec*x
-    coeff=bx/np.sum(bx)
-    ld_activity=coeff.dot(ld_mat)
+    x_array=10**logx_array # shape (n_points,dim_n)
+    bx_array=x_array*b_vec # each row element-wise product with b_vec
+    # so bx_array has shape (n_points,dim_n)
+    coeff=(bx_array.T/np.sum(bx_array,axis=1)).T # shape (n_points,dim_n)
+    npts=logx_array.shape[0]
+    
+    # One implementation is iterate and sum, this is slow (not really?).
+    ld_activity=np.empty((npts,self.dim_n))
+    for i in range(npts):
+      ld_activity[i]=coeff[i].dot(ld_mat_array[i])
+
+    # Another implementation is directly writing out the product
+    # coeff_temp=np.repeat(coeff[:,:,np.newaxis],self.dim_n,axis=2)
+    # ld_activity=(ld_mat_array*coeff_temp).sum(-1)
+
+    # Yet another way is to use einsum
+
     return ld_activity
 
   def x2tk_num(self,logx):
