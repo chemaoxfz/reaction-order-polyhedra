@@ -763,15 +763,17 @@ class rop_vertex:
     #   compute this vertex's neighbors and store in self.neighbors,
     #   depending on whether it is finite or infinite.
     # Neighbor is defined as changing one row by moving the "1" to another place.
-    # Another case of "higher order" neighbor is via "higher order zeros"
+    # For chart 'x', neighbor is more nuanced.
     #   For example, (0,7,7) can have a neighbor (7,1,7) because it has 
-    #   neighbor (7,7,7), which is shared with (7,1,7).
-    #   Because we do not consider (7,7,7) as an "infinite vertex",
-    #   since >1 order infinite vertices only matter as a 
-    #   "connecting region". 
-    #   This can be defined as perm1's repeating index
-    #     is the same as perm2's repeating index. 
-    #   Since whenever this is the case, there is the regim
+    #     neighbor (7,7,7), which is shared with (7,1,7).
+    #   But we do not consider (7,7,7) as an "infinite vertex",
+    #     since >1 order infinite vertices only matter as a 
+    #     "connecting region", and they are ignored in vertex construction. 
+    #   To include these cases, for an infinite vertex perm1, for a given candidate 
+    #     infinite neighbor perm 2, if difference is 2 then of course it's a neighbor,
+    #     e.g. (5,5,2) and (5,5,3); if difference is more than 2, then switch the
+    #     differing rows' order and see whether now they match with difference in just one row.
+    #   Since whenever this is the case, there is the regime (j,j,j,*)
     neighbors_fin={}
     neighbors_inf={}
     for perm,vv in self.bn.vertex_dict['finite'].items():
@@ -779,12 +781,13 @@ class rop_vertex:
       # if np.sum(temp)==1: #the difference is just one row
       if np.sum(np.abs(self.p_mat-vv.p_mat))==2: #difference is in just one row and it's -1, 1.
         neighbors_fin[perm]=vv
-    if self.orientation==0:
-      for perm,vv in self.bn.vertex_dict['infinite'].items():
-        # temp=[not np.all(self.p_mat[i,:]==vv.p_mat[i,:]) for i in range(self.bn.dim_d)]
-        # if np.sum(temp)==1: #the difference is just one row
-        if np.sum(np.abs(self.p_mat-vv.p_mat))==2: #difference is in just one row and it's -1, 1.
-          neighbors_inf[perm]=vv
+    for perm,vv in self.bn.vertex_dict['infinite'].items():
+      # temp=[not np.all(self.p_mat[i,:]==vv.p_mat[i,:]) for i in range(self.bn.dim_d)]
+      # if np.sum(temp)==1: #the difference is just one row
+      if np.sum(np.abs(self.p_mat-vv.p_mat))==2: #difference is in just one row and it's -1, 1.
+        neighbors_inf[perm]=vv
+    
+    # if self.orientation==0:
     neighbors_all={**neighbors_fin,**neighbors_inf}
     self.neighbors_dict={'finite':neighbors_fin,'infinite':neighbors_inf,'all':neighbors_all}
 
@@ -1326,13 +1329,17 @@ class binding_network:
     l_mat=np.concatenate((np.eye(d),l2_mat),axis=1)
     return l_mat
 
-  def logder_num(self,logx,a_mat=np.array([])):
-    """compute the numerical log derivative of the binding network at point x.
+  def logder_num(self,logvar,chart='x',a_mat=np.array([])):
+    """compute the numerical log derivative of the binding network at points 
+      specified by logvar in specified chart and dominance a_mat.
 
     Parameters
     ----------
-    logx : numpy vector
-      Vector of concentrations for all the species in log, base-10.
+    logvar : ndarray n_points-by-dim_n
+      Array of the points to evaluate the log derivatives at, in base-10 log.
+      In chart 'x', for example, this is logx. 
+    chart : str
+      Specifying the chart that logvar is specified in, could be 'x','xak','tk'.
     a_mat : numpy array, optional
       Matrix defining the variables log derivative is taken in terms of.
       Assumes all entries are non-negative, and each row has at least one positive entry.
@@ -1341,25 +1348,57 @@ class binding_network:
     Returns
     -------
     logder: numpy array
-       n-by-n matrix of log derivative of x to (t,k), where t=l_mat_temp * x, n is number of species.
+       n-by-n matrix of log derivative of x to (t,k), where t=a_mat@x, n is number of species.
     """
-    # #assumes all x are positive
-    # assert np.all(x>0)
-    n_mat=self.n_mat
+    # first check a_mat makes sense.
     if not np.any(a_mat): # no a_mat argument is given
       a_mat=self.l_mat
     else:
       assert a_mat.shape==(self.dim_d,self.dim_n), f"the shape of L matrix should be {self.dim_d} by {self.dim_n}."
       assert np.all(a_mat>=0), "all entries of A matrix should be non-negative."
       assert np.all(a_mat.dot(np.ones(self.dim_n))>0), "each row of A matrix should have at least one positive entry."
+    # for different charts, use different functions to evaluate
+    npts=logvar.shape[0]
+    assert logvar.shape[1]==self.dim_n, 'shape of logvar should be num_points-by-dim_n'
+    logders=np.empty((logvar.shape[0],self.dim_n,self.dim_n))
+    if chart=='x':
+      for i in range(npts):
+        logders[i]=self.logder_x_num(self,logvar[i],a_mat)
+    elif chart=='xak':
+      assert self.is_atomic, 'the binding network is not atomic, cannot use xak chart'
+      for i in range(npts):
+        logders[i]=self.logder_xak_num(self,logvar[i],a_mat)
+    elif chart=='tk':
+      for i in range(npts):
+        logders[i]=self.logder_tk_num(self,logvar[i],a_mat)
+    else: 
+      raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
+    pass
+
+  def logder_x_num(self,logx,a_mat):
+    """compute the numerical log derivative of the binding network at one point in chart x.
+
+    Parameters
+    ----------
+    logx : numpy vector
+      Vector of concentrations for all the species in log, base-10.
+    a_mat : numpy array
+      Matrix defining the variables log derivative is taken in terms of.
+      Assumes all entries are non-negative, and each row has at least one positive entry.
+
+    Returns
+    -------
+    logder: numpy array
+       n-by-n matrix of log derivative of x to (t,k), where t=a_mat@x, n is number of species.
+    """
     x=10**logx
     t_inv = 1/(a_mat.dot(x))
     temp=a_mat*x
     upper=(temp.T*t_inv).T
-    logder_inv=np.concatenate((upper,n_mat),axis=0)
+    logder_inv=np.concatenate((upper,self.n_mat),axis=0)
     return np.linalg.inv(logder_inv)
 
-  def logder_num_atomic(self,logxa,logk,a_mat=np.array([])):
+  def logder_xak_num(self,logxak,a_mat):
     """compute the numerical log derivative of dlog(x)/dlog(a_mat*x,k) at a point
     specified by log(xa,k), where xa is concentration of atomic species,
     k is binding constants. log is base 10.
@@ -1367,37 +1406,53 @@ class binding_network:
 
     Parameters
     ----------
-    logxa : numpy vector
-      Vector of concentrations for the atomic species.
-      Log is base 10.
-    logk : numpy vector
-      Vector of binding constants.
-      Log is base 10.
-    a_mat : a_mat : numpy array, optional
+    logxak : numpy vector, shape (dim_n,)
+      Vector numerical value for atomic species concentration (first dim_d 
+        entries) and binding reaction constants (last dim_r entries). 
+      log is base 10.
+    a_mat : a_mat : numpy array.
       Matrix defining the variables log derivative is taken in terms of.
       Assumes all entries are non-negative, and each row has at least one positive entry.
-      Optional, defaults to l_mat of the binding network.
 
     Returns
     -------
     logder: numpy array
-       n-by-n matrix of log derivative of x to (t,k), where t=l_mat_temp * x, n is number of species.
+       n-by-n matrix of log derivative of x to (t,k), where t=a_mat @ x, n is number of species.
     """
-    assert self.is_atomic
-    n_mat=self.n_mat
-    if not np.any(a_mat): # no a_mat argument is given
-      a_mat=self.l_mat
-    else:
-      assert a_mat.shape==(self.dim_d,self.dim_n), f"the shape of L matrix should be {self.dim_d} by {self.dim_n}."
-      assert np.all(a_mat>=0), "all entries of A matrix should be non-negative."
-      assert np.all(a_mat.dot(np.ones(self.dim_n))>0), "each row of A matrix should have at least one positive entry."
+    ## commented out are old code that directly calculate logx, now we use stored map.
+    # d=self.dim_d
+    # logxa=logxak[:d]
+    # logk=logxak[d:]
+    # temp1=(a_mat.T).dot(logxa)
+    # n2_mat=self.n_mat[:,d:]
+    # temp2=np.linalg.inv(n2_mat).dot(logk)
+    # logx=temp1 + np.pad(temp2,(d,0),mode='constant',constant_values=(0,0))
 
-    d,n=a_mat.shape
-    temp1=(a_mat.T).dot(logxa)
-    n2_mat=n_mat[:,d:]
-    temp2=np.linalg.inv(n2_mat).dot(logk)
-    logx=temp1 + np.pad(temp2,(d,0),mode='constant',constant_values=(0,0))
-    return self.logder_num(logx,a_mat)
+    logx=self.xak2x_num(logxak)
+    return self.logder_x_num(logx,a_mat)
+
+  def logder_tk_num(self,logtk,a_mat):
+    """compute the numerical log derivative of dlog(x)/dlog(a_mat@x,k) at a point
+    specified by log(t,k), where t=a_mat@x is concentration of atomic species,
+    k is binding constants. log is base 10.
+
+    Parameters
+    ----------
+    logtk : numpy vector, shape (dim_n,)
+      Vector numerical value for total concentration (first dim_d 
+        entries) and binding reaction constants (last dim_r entries). 
+      log is base 10.
+    a_mat : a_mat : numpy array.
+      Matrix defining the variables log derivative is taken in terms of.
+      Assumes all entries are non-negative, and each row has at least one positive entry.
+
+    Returns
+    -------
+    logder: numpy array
+       n-by-n matrix of log derivative of x to (t,k), where t=a_mat @ x, n is number of species.
+    """
+    logx=self.tk2x_num(logtk)
+    return self.logder_x_num(logx,a_mat)
 
   def logder_num_activity(self,b_vec,logx,ld_mat):
     """given a logder matrix, compute the logder of b^T x.
@@ -1443,15 +1498,15 @@ class binding_network:
     logk=self.n_mat.dot(logx)
     return logt,logk
 
-  def xak2x_num(self,logxa,logk):
-    """compute the logx value given (logxa,logk)
+  def xak2x_num(self,logxak):
+    """compute the logx value given logxak=(logxa,logk)
 
     Parameters
     ----------
-    logxa : numpy vector
-      Vector numerical value for atomic species concentration. log is base 10
-    logk : numpy vector
-      Vector numerical value for binding reaction constants. log is base 10
+    logxak : numpy vector, shape (dim_n,)
+      Vector numerical value for atomic species concentration (first dim_d 
+        entries) and binding reaction constants (last dim_r entries). 
+      log is base 10.
 
     Returns
     -------
@@ -1462,7 +1517,7 @@ class binding_network:
     except AttributeError:
       self.calc_xak2x_map() # if doesn't exist, calculate it
       xak2x_map=self.xak2x_map
-    return xak2x_map.dot(np.concatenate((logxa,logk))) #because the chart is in log
+    return xak2x_map.dot(logxak)
 
   def calc_xak2x_map(self):
     # Defines the matrix (linear map) that takes log(xa,k) to log(x)
@@ -1476,19 +1531,19 @@ class binding_network:
     temp=np.concatenate((upper,lower),axis=0)
     self.xak2x_map=temp
 
-  def tk2x_num(self,logt,logk,a_mat=np.array([])):
-    """compute the logx value by numerical integration along the equilibrium manifold using log derivatives.
-    The point on the manifold defined by (logt,logk) is the same as that defined by logx.
+  def tk2x_num(self,logtk,a_mat):
+    """compute the logx value by numerical integration along the equilibrium manifold 
+    using log derivatives. The point on the manifold defined by logtk=(logt,logk) is
+    the same as that defined by logx.
 
     Parameters
     ----------
-    logt : numpy vector
-      Vector numerical value for total variables that define the x point. p_(logx) = p_(logt,logk). 
-      log is base 10.
-    logk : numpy vector
-      Vector numerical value for binding constants that define the x to be calculated. log is base 10.
-    a_mat: numpy array, optional
-      The matrix defining the total variables t=a_mat*x that the log derivatives are taken with respect to.
+    logtk : numpy vector, shape (dim_n,)
+      Vector numerical value for total variables (in first dim_d entries) and 
+       the binding reactino constants (in last dim_r entries) that define the point. 
+       p_(logx) = p_(logt,logk). log is base 10.
+    a_mat: numpy array
+      The matrix defining the total variables t=a_mat@x that the log derivatives are taken with respect to.
       Defaults to self.l_mat.
 
     Returns
@@ -1496,16 +1551,13 @@ class binding_network:
     logx: numpy vector
       The numerical value of x at this point. log is base 10.
     """
-    if not np.any(a_mat): # no a_mat argument is given
-      a_mat=self.l_mat
-
     # the initial point is always x=1, (t,k) = (A*1, 1)
     # or, in log, logx=0, (logt,logk) = (log(A*1),0)
 
     logt0=np.log10(np.sum(a_mat,axis=1))
     logk0=np.zeros(self.dim_r)
     y0=np.concatenate((logt0,logk0),axis=0)
-    y1=np.concatenate((logt,logk),axis=0)
+    y1=logtk
     logx0=np.zeros(self.dim_n)
     # The time is pseudo time, parameterizing trajectory from y0 to y1,
     # where y0=(logt0,logk0) = (log(A*1),0), and y1=(logt,logk) the input.
@@ -1514,7 +1566,7 @@ class binding_network:
     # dlogx/dtau (x0) = dlogx/dlog(t,k) (x0) * dlog(t,k)/dtau (x0)
     #                 = dlogx/dlog(t,k) (x0) * (y1-y0)
     # dlogx/dlog(t,k) (x0) is log derivative matrix evaluated at x0.
-    time_derivative_func=lambda tau,logx: self.logder_num(logx,a_mat=a_mat).dot(y1-y0)
+    time_derivative_func=lambda tau,logx: self.logder_x_num(logx,a_mat).dot(y1-y0)
     sol=solve_ivp(time_derivative_func, [0, 1], logx0)
     logx=sol.y[:,-1]
     return logx
