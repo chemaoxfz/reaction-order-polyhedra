@@ -1473,7 +1473,7 @@ class binding_network:
         is mapped to logx chart first. 
         So we also return this for convenience.
     """
-    logx=self.tk2x_num(logtk)
+    logx=self.tk2x_num(logtk,a_mat)
     return self.logder_x_num(logx,a_mat),logx
 
   def logder_activity_num(self,b_vec,logx_array,ld_mat_array):
