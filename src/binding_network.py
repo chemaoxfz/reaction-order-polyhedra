@@ -1363,14 +1363,14 @@ class binding_network:
     logders=np.empty((logvar.shape[0],self.dim_n,self.dim_n))
     if chart=='x':
       for i in range(npts):
-        logders[i]=self.logder_x_num(self,logvar[i],a_mat)
+        logders[i]=self.logder_x_num(logvar[i],a_mat)
     elif chart=='xak':
       assert self.is_atomic, 'the binding network is not atomic, cannot use xak chart'
       for i in range(npts):
-        logders[i]=self.logder_xak_num(self,logvar[i],a_mat)
+        logders[i]=self.logder_xak_num(logvar[i],a_mat)
     elif chart=='tk':
       for i in range(npts):
-        logders[i]=self.logder_tk_num(self,logvar[i],a_mat)
+        logders[i]=self.logder_tk_num(logvar[i],a_mat)
     else: 
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
     pass
