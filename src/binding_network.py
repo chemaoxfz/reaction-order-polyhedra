@@ -1373,7 +1373,7 @@ class binding_network:
         logders[i]=self.logder_tk_num(logvar[i],a_mat)
     else: 
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
-    pass
+    return logders
 
   def logder_x_num(self,logx,a_mat):
     """compute the numerical log derivative of the binding network at one point in chart x.
@@ -1491,7 +1491,7 @@ class binding_network:
     # coeff_temp=np.repeat(coeff[:,:,np.newaxis],self.dim_n,axis=2)
     # ld_activity=(ld_mat_array*coeff_temp).sum(-1)
 
-    # Yet another way is to use einsum
+    # Yet another way is to use einsum. Will do these if speed is a problem.
 
     return ld_activity
 
