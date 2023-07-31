@@ -1021,8 +1021,8 @@ class rop_vertex:
     # HalfspaceIntersection take the convention halfspaces=[A;b]
     #   to indicate A x + b <= 0.
     halfspaces = np.hstack((A, b[:, None]))
-    # hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='QJ') #QJ option to joggle to avoid non-full-dimensional constraints.
-    hs = HalfspaceIntersection(halfspaces, feasible_point)
+    hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='QJ') #QJ option to joggle to avoid non-full-dimensional constraints.
+    # hs = HalfspaceIntersection(halfspaces, feasible_point)
     return hs
 
 
@@ -1036,7 +1036,7 @@ class rop_vertex:
     hs = self.__hs_intersection(A_bounded, b_bounded, feasible_point)
     # hs = hs_intersection(A, b, interior_point)
     points = hs.intersections
-    hull = ConvexHull(points)
+    hull = ConvexHull(points,qhull_options='Q12') # to allow wide facets and dulbridge... meaning what???
     return points[hull.vertices], feasible_point, hs
 
 
