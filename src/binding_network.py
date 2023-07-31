@@ -1369,14 +1369,17 @@ class binding_network:
     logders=np.empty((logvar.shape[0],self.dim_n,self.dim_n))
     if chart=='x':
       for i in range(npts):
-        logders[i],logx=self.logder_x_num(logvar[i],a_mat)
+        logders[i]=self.logder_x_num(logvar[i],a_mat)
+      logx=logvar
     elif chart=='xak':
       assert self.is_atomic, 'the binding network is not atomic, cannot use xak chart'
+      logx=np.empty(logvar.shape)
       for i in range(npts):
-        logders[i],logx=self.logder_xak_num(logvar[i],a_mat)
+        logders[i],logx[i]=self.logder_xak_num(logvar[i],a_mat)
     elif chart=='tk':
+      logx=np.empty(logvar.shape)
       for i in range(npts):
-        logders[i],logx=self.logder_tk_num(logvar[i],a_mat)
+        logders[i],logx[i]=self.logder_tk_num(logvar[i],a_mat)
     else: 
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
     return logders,logx
@@ -1397,17 +1400,13 @@ class binding_network:
     logder: ndarray, shape (n_points,dim_n,dim_n)
       array of n-by-n matrix of log derivative of x to (t,k), where 
         t=a_mat@x, n is number of species.
-    logx : ndarray, shape (n_points,dim_n)
-      array of logx that the logvar points correspond to.
-        This is returned since all input var, regardless of chart,
-        is mapped to logx chart first. 
-        So we also return this for convenience."""
+    """
     x=10**logx
     t_inv = 1/(a_mat.dot(x))
     temp=a_mat*x
     upper=(temp.T*t_inv).T
     logder_inv=np.concatenate((upper,self.n_mat),axis=0)
-    return np.linalg.inv(logder_inv),logx
+    return np.linalg.inv(logder_inv)
 
   def logder_xak_num(self,logxak,a_mat):
     """compute the numerical log derivative of dlog(x)/dlog(a_mat*x,k) at a point
