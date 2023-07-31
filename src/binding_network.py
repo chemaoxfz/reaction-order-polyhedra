@@ -1022,7 +1022,7 @@ class rop_vertex:
     #   to indicate A x + b <= 0.
     halfspaces = np.hstack((A, b[:, None]))
     # hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='QJ') #QJ option to joggle to avoid non-full-dimensional constraints.
-    hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='Qt)
+    hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='Qt')
     return hs
 
 
