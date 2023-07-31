@@ -1022,7 +1022,10 @@ class rop_vertex:
     #   to indicate A x + b <= 0.
     halfspaces = np.hstack((A, b[:, None]))
     # hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='QJ') #QJ option to joggle to avoid non-full-dimensional constraints.
-    hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='Qt')
+    # Qt option to triangulate all the time to avoid precision issues.
+    # This is helpful to avoid problems since later on the "ConvexHull"
+    #   function uses this Qt option.
+    hs = HalfspaceIntersection(halfspaces, feasible_point,qhull_options='Qt') 
     return hs
 
 
