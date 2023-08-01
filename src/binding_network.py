@@ -1828,8 +1828,81 @@ class binding_network:
     nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
     sample_vertex_dict={}
     for key,vv in vertex_plot_dict.items():
-      sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,margin=margin,logmin=logmin,logmax=logmax)
+      sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
     return sample_vertex_dict
+
+  def sampling_over_activity_regime_hull(self,nsample,b_tuple,regime_key_list=[],is_finite_only=False,is_feasible_only=False,chart='x',logmin=-6,logmax=6,margin=0,c_mat_extra=[],c0_vec_extra=[]):
+    """
+    Randomly sample points in the log space of chart variables for each
+      dom_regime for a given activity.
+      but instead of log-uniform, we first assign points to each vertex
+      in an even fashion, then sample uniformly within each vertex.
+
+    Parameters
+    ----------
+    nsample : int
+      The number of points to be sampled in the space of chart variables.
+      This is divided evenly to all the vertices of this binding network.
+    b_tuple : tuple of length dim_n
+      The b_tuple indicating the activity whose dom_regimes we are 
+        interested in sampling.
+    is_finite_only : bool, optional
+      If True, only finite dom_regimes are sampled.
+      If False, both finite and infinite dom_regimes are sampled.
+      Defaults to False.
+    regime_key_list : list of dominance regime's keys, optional
+      The list of keys for dom_regimes indexing the dom_regimes 
+        to be sampled. e.g. [((0,1,2),7),((0,1,3),7)].
+      If empty, sample all dom_regimes.
+      Defaults to empty list []. 
+    is_feasible_only : bool, optional
+      If True, only feasible dom_regimes are sampled.
+      If False, all dom_regimes in regime_key_list (or all in this 
+        activity) are sampled.
+      Each dom_regime's is_feasible tag come from results of the most
+        recent feasibility test.
+    chart : str, optional
+      A string indicating the chart that the opt_constraints are specified in.
+      Choices are 'x','xak', and 'tk'. Defaults to 'x'.
+    margin : float, optional
+      The vertex's feasibility conditions are inequalities, 
+        of the form c_mat*logx + c0_vec > margin (e.g. in 'x' chart),
+        where margin is the positive threshold used here. Default to 0.
+      This can be adjusted to be stronger/weaker requirements on dominance.
+    logmin : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+    logmax : float or ndarray vector
+      logmin, logmax could be scalars, then it's the same value applied to 
+        every variable. 
+      They could also be vectors of length dim_n.
+
+    Returns
+    -------
+    sample_vertex_dict : dictionary of ndarray with shape nsample-by-dim_n
+      Key is the perm of each vertex. Value is the sample for that vertex.
+    """
+    pass
+    # # calculate number of vertex to be plotted and the dictionary of vertices.
+    # vertex_plot_dict={}
+    # if vertex_perm_list: # vertex_perm_list is not empty
+    #   nvertex=len(vertex_perm_list)
+    #   for perm in vertex_perm_list:
+    #     vertex_plot_dict[perm]=self.vertex_dict['all'][perm]
+    # else: # plot all vertices
+    #   if is_finite_only: 
+    #     finite_key='finite'
+    #   else: 
+    #     finite_key='all'
+    #   nvertex=len(self.vertex_dict[finite_key].keys())
+    #   vertex_plot_dict=self.vertex_dict[finite_key]
+    # # now sample each vertex.
+    # nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
+    # sample_vertex_dict={}
+    # for key,vv in vertex_plot_dict.items():
+    #   sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,margin=margin,logmin=logmin,logmax=logmax)
+    # return sample_vertex_dict
 
   def activity_regime_construct(self,b_vec):
     # given b_vec, go through all vertices and their possible regimes
@@ -1915,10 +1988,6 @@ class binding_network:
         else:
           regime_constrained_fin[key]=regime
     regime_constrained_all={**regime_constrained_fin,**regime_constrained_inf}
-    # regime_constrained_all={key:regime for key,regime in self.activity_regime_dict[tuple(b_vec)]['all'].items() if regime.is_feasible}
-    # regime_constrained_fin={key:regime for key,regime in self.activity_regime_dict[tuple(b_vec)]['finite'].items() if regime.is_feasible}
-    # regime_constrained_inf={key:regime for key,regime in self.activity_regime_dict[tuple(b_vec)]['infinite'].items() if regime.is_feasible}
-
     self.activity_regime_constrained_dict[tuple(b_vec)]={'all':regime_constrained_all,'finite':regime_constrained_fin,'infinite':regime_constrained_inf}
 
     print("Compute regimes' neighboring regimes under opt_constraints...")
