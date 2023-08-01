@@ -1001,6 +1001,7 @@ class rop_vertex:
     c = np.zeros((A.shape[1] + 1,))
     c[-1] = -1
     res = linprog(c, A_ub=A_linprog, b_ub=b_linprog, bounds=(None, None))
+    if res.status!=0: breakpoint()
     return res.x[:-1]
 
   def __add_bbox(self,A, b, bbox):
