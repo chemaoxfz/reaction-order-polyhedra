@@ -1862,6 +1862,7 @@ class binding_network:
     nsample_per_vertex=int(nsample/nvertex) # take the floor for number of sample per vertex
     sample_vertex_dict={}
     for key,vv in vertex_plot_dict.items():
+      print(key)
       sample_vertex_dict[key]=vv.vertex_hull_sampling(nsample_per_vertex,chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
     return sample_vertex_dict
 
