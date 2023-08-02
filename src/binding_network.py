@@ -1096,7 +1096,6 @@ class rop_vertex:
     # temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
     # coeffs=np.diff(temp,prepend=0,append=1,axis=1)
     # sample=coeffs@points # this has shape nsample-by-dim_n
-    breakpoint()
     return sample
 
   def __dist_in_hull(self,points, nsample, points_are_vertices=False):
@@ -1124,9 +1123,9 @@ class rop_vertex:
     if points_are_vertices:
       hull=points 
     else: 
-      hull = points[ConvexHull(points).vertices]
+      hull = points[ConvexHull(points,qhull_options='Q12').vertices]
     breakpoint()
-    deln = hull[Delaunay(hull).simplices]
+    deln = hull[Delaunay(hull,qhull_options='Q12').simplices]
     vols = np.abs(np.linalg.det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)    
     sample = np.random.choice(len(vols), size = nsample, p = vols / vols.sum())
     return np.einsum('ijk, ij -> ik', deln[sample], dirichlet.rvs([1]*(dims + 1), size = nsample))
