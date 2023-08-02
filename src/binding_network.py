@@ -967,7 +967,7 @@ class rop_vertex:
 
     c_mat,c0_vec=self.chart_check(chart)
 
-    # c_mat*var + c0_vec - margin >= 0, becomes A*var + b <=0
+    # the inequality c_mat*var + c0_vec - margin >= 0, becomes A*var + b <=0
     # where A = -c_mat, and b = th - c0_vec.
     # With extra constraints, margin is always 0 for extra constraints,
     # so margin_full = vstack((margin,zeros)) where zeros is of length len(c0_vec_extra)
@@ -983,6 +983,7 @@ class rop_vertex:
     b=margin_vec_full - c0_vec_full
 
     points, hull, feasible_point, hs = self.get_convex_hull(A,b,bbox)
+    breakpoint()
     return points, hull, feasible_point,hs
 
   def __feasible_point_calc(self,A, b):
