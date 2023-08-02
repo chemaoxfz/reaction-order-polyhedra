@@ -6,7 +6,8 @@ import time
 import sympy as sp
 from scipy.integrate import solve_ivp
 from scipy.linalg import null_space
-from scipy.spatial import HalfspaceIntersection, ConvexHull
+from scipy.stats import dirichlet
+from scipy.spatial import HalfspaceIntersection, ConvexHull, Delaunay
 from scipy.optimize import linprog
 import itertools
 import cvxpy as cp
@@ -523,7 +524,7 @@ class rop_dom_regime:
       c0_vec_extra_full = c0_vec_add-margin
     # Get the hull using the vertex's method, but with additional
     #   constraints from the dom_regime.
-    points,_,_=self.vertex.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra_full,c0_vec_extra=c0_vec_extra_full)
+    points,hull,_,_=self.vertex.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra_full,c0_vec_extra=c0_vec_extra_full)
     ncoeffs=points.shape[0]
     temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
     coeffs=np.diff(temp,prepend=0,append=1,axis=1)
@@ -981,8 +982,8 @@ class rop_vertex:
     A=-c_mat_full # negtive because the optimization code is for Ax+b<=0, while our notation is c_mat*x+c0_vec >=0.
     b=margin_vec_full - c0_vec_full
 
-    points, feasible_point, hs = self.get_convex_hull(A,b,bbox)
-    return points,feasible_point,hs
+    points, hull, feasible_point, hs = self.get_convex_hull(A,b,bbox)
+    return points, hull, feasible_point,hs
 
   def __feasible_point_calc(self,A, b):
     # Finds the center of the largest sphere fitting in the convex hull of
@@ -998,7 +999,7 @@ class rop_vertex:
     norm_vector = np.linalg.norm(A, axis=1) # Frobenius norm
     A_linprog = np.hstack((A, norm_vector[:, None])) 
     b_linprog = -b[:, None] # this makes b into shape len(b)-by-1.
-    c = np.zeros((A.shape[1] + 1,))
+    c=np.zeros((A.shape[1] + 1,))
     c[-1] = -1
     res = linprog(c, A_ub=A_linprog, b_ub=b_linprog, bounds=(None, None))
     if res.status!=0: breakpoint()
@@ -1041,7 +1042,7 @@ class rop_vertex:
     # hs = hs_intersection(A, b, interior_point)
     points = hs.intersections
     hull = ConvexHull(points,qhull_options='Q12') # to allow wide facets and dulbridge... meaning what???
-    return points[hull.vertices], feasible_point, hs
+    return points[hull.vertices], hull, feasible_point, hs
 
 
   def vertex_hull_sampling(self,nsample,chart='x', margin=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
@@ -1084,17 +1085,49 @@ class rop_vertex:
       Each row (sample[i,:]) is a sampled point.
     """
     # first compute the convex hull for this vertex's validity and get the vertex points.
-    points,_,_=self.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
+    points,_,_,_=self.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
+    sample=self.__dist_in_hull(points,nsample,points_are_vertices=True)
     # To sample a simplex in n-dim uniformly, take n uniform(0,1) random 
     #   variables and take difference after padding 0 at the beginning and
     #   1 at the end. This gives a vector of n-dim in the simplex, with
     #   a probability density that is uniform in the simplex.
     #   See https://cs.stackexchange.com/questions/3227/uniform-sampling-from-a-simplex
-    ncoeffs=points.shape[0]
-    temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
-    coeffs=np.diff(temp,prepend=0,append=1,axis=1)
-    sample=coeffs@points # this has shape nsample-by-dim_n
+    # ncoeffs=points.shape[0]
+    # temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
+    # coeffs=np.diff(temp,prepend=0,append=1,axis=1)
+    # sample=coeffs@points # this has shape nsample-by-dim_n
     return sample
+
+  def __dist_in_hull(points, nsample, points_are_vertices=False):
+    """
+    Create uniform sample over convex hulls by Delaunay triangulation.
+    Adapted from https://stackoverflow.com/questions/59073952/how-to-get-uniformly-distributed-points-in-convex-hull
+    
+    Parameters
+    ----------
+    points : ndarray, shape (num_points,dim).
+      Points whose convex hull is to be sampled uniformly.
+    nsample : int
+      Number of points to be sampled.
+    points_are_vertices : bool, optional
+      If True, points are assumed to be vertices.
+      If False, convex hull of points is first taken to find vertices.
+      Defaults to False.
+
+    Returns
+    -------
+    sample : ndarray, shape (nsample, dim).
+      sampled points uniformly in convex hull of points.
+    """
+    dims = points.shape[-1]
+    if points_are_vertices:
+      hull=points 
+    else: 
+      hull = points[ConvexHull(points).vertices]
+    deln = hull[Delaunay(hull).simplices]
+    vols = np.abs(np.linalg.det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)    
+    sample = np.random.choice(len(vols), size = nsample, p = vols / vols.sum())
+    return np.einsum('ijk, ij -> ik', deln[sample], dirichlet.rvs([1]*(dims + 1), size = nsample))
 
   def vertex_print_validity_condition(self,is_asymptotic=False):
     """
