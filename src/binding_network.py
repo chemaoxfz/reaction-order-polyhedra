@@ -1098,7 +1098,7 @@ class rop_vertex:
     # sample=coeffs@points # this has shape nsample-by-dim_n
     return sample
 
-  def __dist_in_hull(points, nsample, points_are_vertices=False):
+  def __dist_in_hull(self,points, nsample, points_are_vertices=False):
     """
     Create uniform sample over convex hulls by Delaunay triangulation.
     Adapted from https://stackoverflow.com/questions/59073952/how-to-get-uniformly-distributed-points-in-convex-hull
