@@ -1042,7 +1042,7 @@ class rop_vertex:
     # hs = hs_intersection(A, b, interior_point)
     points = hs.intersections
     hull = ConvexHull(points,qhull_options='Q12') # to allow wide facets and dulbridge... meaning what???
-    return points[hull.vertices], hull, feasible_point, hs
+    return points,points[hull.vertices],feasible_point, hs
 
 
   def vertex_hull_sampling(self,nsample,chart='x', margin=0,logmin=-6,logmax=6,c_mat_extra=[],c0_vec_extra=[]):
@@ -1085,8 +1085,8 @@ class rop_vertex:
       Each row (sample[i,:]) is a sampled point.
     """
     # first compute the convex hull for this vertex's validity and get the vertex points.
-    points,_,_,_=self.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
-    sample=self.__dist_in_hull(points,nsample,points_are_vertices=True)
+    points,hull,_,_=self.vertex_hull_of_validity(chart=chart,margin=margin,logmin=logmin,logmax=logmax,c_mat_extra=c_mat_extra,c0_vec_extra=c0_vec_extra)
+    sample=self.__dist_in_hull(points,nsample,points_are_vertices=False)
     # To sample a simplex in n-dim uniformly, take n uniform(0,1) random 
     #   variables and take difference after padding 0 at the beginning and
     #   1 at the end. This gives a vector of n-dim in the simplex, with
@@ -1096,6 +1096,7 @@ class rop_vertex:
     # temp=np.sort(np.random.rand(nsample,ncoeffs-1),axis=1)
     # coeffs=np.diff(temp,prepend=0,append=1,axis=1)
     # sample=coeffs@points # this has shape nsample-by-dim_n
+    breakpoint()
     return sample
 
   def __dist_in_hull(self,points, nsample, points_are_vertices=False):
