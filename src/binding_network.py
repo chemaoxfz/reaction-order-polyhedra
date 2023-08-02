@@ -983,7 +983,6 @@ class rop_vertex:
     b=margin_vec_full - c0_vec_full
 
     points, hull, feasible_point, hs = self.get_convex_hull(A,b,bbox)
-    breakpoint()
     return points, hull, feasible_point,hs
 
   def __feasible_point_calc(self,A, b):
@@ -1125,6 +1124,7 @@ class rop_vertex:
       hull=points 
     else: 
       hull = points[ConvexHull(points).vertices]
+    breakpoint()
     deln = hull[Delaunay(hull).simplices]
     vols = np.abs(np.linalg.det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)    
     sample = np.random.choice(len(vols), size = nsample, p = vols / vols.sum())
