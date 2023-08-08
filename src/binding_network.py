@@ -1717,6 +1717,82 @@ class binding_network:
       vv.vertex_c_mat_xak_calc()
     print('Done.')
 
+  def __get_dom_vec(self,a_mat,not_dominated_col_idx,dominated_row_vec_prev,dom_tuple_prev):
+    perm_dict_add={} # use dictionary to make sure repeated ones are combined.
+    for j in not_dominated_col_idx:
+      dominated_row_j = a_mat[:,j]>0
+      dominated_row_vec_new = dominated_row_j - dominated_row_j * dominated_row_vec_prev
+      dominated_row_idx_new = np.where(dominated_row_vec_new)[0]
+      dom_vec = np.array(dom_tuple_prev)
+      dom_vec[dominated_row_idx_new] = j
+      dominated_row_vec_now = dominated_row_vec_prev + dominated_row_vec_new
+      if np.sum(dominated_row_vec_now)<a_mat.shape[0]:
+        # there are rows not yet dominated
+        not_dominated_row_idx_next = np.where(1-dominated_row_vec_now)[0]
+        # then we combine all the rows not yet dominated to find the 
+        #   columns not yet dominated. This could result in previously 
+        #   already discovered dominance regimes to be counted again.
+        not_dominated_col_idx_next = np.where(np.sum(a_mat[not_dominated_row_idx_next,:],axis=0)>0)[0]
+        perm_dict_add_next = self.__get_dom_vec(a_mat,not_dominated_col_idx_next,dominated_row_vec_now,tuple(dom_vec))
+        perm_dict_add.update(perm_dict_add_next)
+      else: # all rows are dominated
+        perm_dict_add[tuple(dom_vec)]=True
+    return perm_dict_add
+
+  def vertex_construct_direct(self):
+    """
+    Construct the rop_vertex objects that this binding network can have,
+      directly, without feasibility test.
+
+    Parameters
+    ----------
+    None.
+
+    Returns
+    -------
+    None. The vertices are recorded in self.vertex_dict and by updating
+      the vertex objects.
+    """
+    # We construct the vertices by iteratively construct all the possible
+    # dominance vector (perm).
+    print('Constructing vertex objects DIRECTLY...')
+    a_mat=self.l_mat
+    d,n=a_mat.shape
+    not_dominated_col_idx=list(range(n))
+    dominated_row_vec_prev=np.zeros(d)
+    dom_tuple_prev=tuple(np.empty(d,dtype=int))
+    perm_dict=self.__get_dom_vec(a_mat,not_dominated_col_idx,dominated_row_vec_prev,dom_tuple_prev)
+    vertex_fin_dict={}
+    vertex_inf_dict={}
+    vertex_infHO_dict={}
+    for perm in perm_dict.keys():
+      vertex=rop_vertex(perm,self)
+      if vertex.orientation!=0:
+        vertex_fin_dict[perm]=vertex
+      elif np.max(np.sum(vertex.p_mat,axis=0))>2:
+        # this is an infinite vertex of higher order
+        vertex_infHO_dict[perm]=vertex
+      else: #infinite vertex of order one
+        vertex_inf_dict[perm]=vertex
+    vertex_dict={**vertex_fin_dict,**vertex_inf_dict}
+    self.vertex_dict={'all':vertex_dict,'finite':vertex_fin_dict,'infinite':vertex_inf_dict,'infiniteHO':vertex_infHO_dict}
+
+    print('Finished vertex construction, now computing neighbors of vertices...')
+    for perm,vv in vertex_dict.items():
+      vv.vertex_find_neighbors()
+
+    print('Finished neighbors, now computing log derivatives...')
+    # first compute log der for finite vertices, since infinite ones rely on
+    # finite neighbors to find orientation.
+    for perm,vv in vertex_dict.items():
+      vv.vertex_ld_calc()
+
+    print('Finished log derivatives, now computing c_mat_xak')
+    # compute c_mat_xak for each vertex in preparation for feasibility tests.
+    for perm,vv in vertex_dict.items():
+      vv.vertex_c_mat_xak_calc()
+    print('Done.')
+
   def vertex_constrained_construct(self,opt_constraints,chart='xak'):
     """
     Assuming self.vertex_dict is already computed, for given 
