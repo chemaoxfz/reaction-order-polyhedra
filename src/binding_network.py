@@ -1646,6 +1646,92 @@ class binding_network:
     logx=sol.y[:,-1]
     return logx
 
+
+
+  def logder_tk2x_num(self,logvar,chart='x',a_mat=np.array([])):
+    """compute the numerical dlog(t,k)/dlog(x) log derivative of the binding network at points 
+      specified by logvar in specified chart and dominance a_mat.
+
+    Parameters
+    ----------
+    logvar : ndarray n_points-by-dim_n
+      Array of the points to evaluate the log derivatives at, in base-10 log.
+      In chart 'x', for example, this is logx. 
+    chart : str
+      Specifying the chart that logvar is specified in, could be 'x','xak','tk'.
+    a_mat : numpy array, optional
+      Matrix defining the variables log derivative is taken in terms of.
+      Assumes all entries are non-negative, and each row has at least one positive entry.
+      Optional, defaults to l_mat of the binding network.
+
+    Returns
+    -------
+    logder: ndarray, shape (n_points,dim_n,dim_n)
+      array of n-by-n matrix of log derivative of (t,k) to x, where 
+        t=a_mat@x, n is number of species.
+    logx : ndarray, shape (n_points,dim_n)
+      array of logx that the logvar points correspond to.
+        This is returned since all input var, regardless of chart,
+        is mapped to logx chart first. 
+        So we also return this for convenience.
+    """
+    # first check a_mat makes sense.
+    if not np.any(a_mat): # no a_mat argument is given
+      a_mat=self.l_mat
+    else:
+      assert a_mat.shape==(self.dim_d,self.dim_n), f"the shape of L matrix should be {self.dim_d} by {self.dim_n}."
+      assert np.all(a_mat>=0), "all entries of A matrix should be non-negative."
+      assert np.all(a_mat.dot(np.ones(self.dim_n))>0), "each row of A matrix should have at least one positive entry."
+    # for different charts, use different functions to evaluate
+    npts=logvar.shape[0]
+    assert logvar.shape[1]==self.dim_n, 'shape of logvar should be num_points-by-dim_n'
+    logders=np.empty((logvar.shape[0],self.dim_n,self.dim_n))
+    if chart=='x':
+      for i in range(npts):
+        logders[i]=self.logder_tk2x_x_num(logvar[i],a_mat)
+      logx=logvar
+    elif chart=='xak':
+      assert self.is_atomic, 'the binding network is not atomic, cannot use xak chart'
+      logx=np.empty(logvar.shape)
+      for i in range(npts):
+        logx[i]=self.xak2x_num(logvar[i])
+        logders[i]=self.logder_tk2x_x_num(logx[i],a_mat)
+    elif chart=='tk':
+      logx=np.empty(logvar.shape)
+      for i in range(npts):
+        logx[i]=self.tk2x_num(logvar[i])
+        logders[i]=self.logder_tk2x_x_num(logvar[i],a_mat)
+    else: 
+      raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
+    return logders,logx
+
+  def logder_tk2x_x_num(self,logx,a_mat):
+    """compute the numerical dlog(t,k)/dlog(x) 
+    log derivative of the binding network at one point in chart x.
+
+    Parameters
+    ----------
+    logx : numpy vector
+      Vector of concentrations for all the species in log, base-10.
+    a_mat : numpy array
+      Matrix defining the variables log derivative is taken in terms of.
+      Assumes all entries are non-negative, and each row has at least one positive entry.
+
+    Returns
+    -------
+    logder: ndarray, shape (n_points,dim_n,dim_n)
+      array of n-by-n matrix of log derivative of (t,k) to x, where 
+        t=a_mat@x, n is number of species.
+    """
+    x=10**logx
+    t_inv = 1/(a_mat.dot(x))
+    temp=a_mat*x
+    upper=(temp.T*t_inv).T
+    logder=np.concatenate((upper,self.n_mat),axis=0)
+    return logder
+
+
+
 # BELOW ARE VERTEX RELATED METHODS
 
   def vertex_construct(self):
