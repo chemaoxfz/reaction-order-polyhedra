@@ -1853,11 +1853,14 @@ class binding_network:
     vertex_infHO_dict={}
     for perm in perm_dict.keys():
       vertex=rop_vertex(perm,self)
+      repeat_vec=np.sum(vertex.p_mat,axis=0)
       if vertex.orientation!=0:
         vertex_fin_dict[perm]=vertex
-      elif np.max(np.sum(vertex.p_mat,axis=0))>2 or np.sum(np.sum(vertex.p_mat,axis=0)>2) >=2:
+      # elif np.max(repeat_vec)>2 or np.sum(repeat_vec>1) >=2:
         # there is an index repeated 3 or more times, OR there are more than two indices repeated twice or above;
         # So this is an infinite vertex of higher order.
+      elif np.sum(repeat_vec[np.where(repeat_vec>1)[0]])>2:
+        # another way to test for higher order is the sum of repeated indices' total repeated times is >2.
         vertex_infHO_dict[perm]=vertex
       else: #infinite vertex of order one
         vertex_inf_dict[perm]=vertex
