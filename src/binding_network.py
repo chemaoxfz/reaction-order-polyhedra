@@ -1855,8 +1855,9 @@ class binding_network:
       vertex=rop_vertex(perm,self)
       if vertex.orientation!=0:
         vertex_fin_dict[perm]=vertex
-      elif np.max(np.sum(vertex.p_mat,axis=0))>2:
-        # this is an infinite vertex of higher order
+      elif np.max(np.sum(vertex.p_mat,axis=0))>2 or np.sum(np.sum(vertex.p_mat,axis=0)>2) >=2:
+        # there is an index repeated 3 or more times, OR there are more than two indices repeated twice or above;
+        # So this is an infinite vertex of higher order.
         vertex_infHO_dict[perm]=vertex
       else: #infinite vertex of order one
         vertex_inf_dict[perm]=vertex
