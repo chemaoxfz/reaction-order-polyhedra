@@ -1699,7 +1699,7 @@ class binding_network:
     elif chart=='tk':
       logx=np.empty(logvar.shape)
       for i in range(npts):
-        logx[i]=self.tk2x_num(logvar[i])
+        logx[i]=self.tk2x_num(logvar[i],a_mat)
         logders[i]=self.logder_tk2x_x_num(logvar[i],a_mat)
     else: 
       raise Exception('chart that is not one of "x,xak,tk" is not implemented yet')
