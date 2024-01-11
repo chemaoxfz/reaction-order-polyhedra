@@ -1606,7 +1606,7 @@ class binding_network:
     temp=np.concatenate((upper,lower),axis=0)
     self.xak2x_map=temp
 
-  def tk2x_num(self,logtk,a_mat=np.array([])):
+  def tk2x_num(self,logtk,a_mat):
     """compute the logx value by numerical integration along the equilibrium manifold 
     using log derivatives. The point on the manifold defined by logtk=(logt,logk) is
     the same as that defined by logx.
@@ -1619,15 +1619,13 @@ class binding_network:
        p_(logx) = p_(logt,logk). log is base 10.
     a_mat: numpy array
       The matrix defining the total variables t=a_mat@x that the log derivatives are taken with respect to.
-      Defaults to self.l_mat.
+      Default should be specified to be self.l_mat.
 
     Returns
     -------
     logx: numpy vector
       The numerical value of x at this point. log is base 10.
     """
-    if not np.any(a_mat): # no a_mat argument is given
-      a_mat=self.l_mat
 
     # the initial point is always x=1, (t,k) = (A*1, 1)
     # or, in log, logx=0, (logt,logk) = (log(A*1),0)
